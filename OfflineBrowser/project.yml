@@ -1,0 +1,89 @@
+name: OfflineBrowser
+options:
+  bundleIdPrefix: com.offlinebrowser
+  deploymentTarget:
+    iOS: "15.0"
+  xcodeVersion: "15.4"
+  generateEmptyDirectories: true
+  lastUpgradeCheck: "1540"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: "5.9"
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "6.24.0"
+  FirebaseCrashlytics:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "10.19.0"
+
+targets:
+  OfflineBrowser:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+      - path: Core
+      - path: Features
+      - path: Shared
+      - path: Resources
+    resources:
+      - path: Resources/Assets.xcassets
+      - path: Resources/NetworkInterceptor.js
+    dependencies:
+      - package: GRDB
+      - package: FirebaseCrashlytics
+        product: FirebaseCrashlytics
+    settings:
+      base:
+        INFOPLIST_FILE: Resources/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.offlinebrowser.app
+        TARGETED_DEVICE_FAMILY: "1"
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Offline Browser
+        CFBundleName: OfflineBrowser
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchStoryboardName: LaunchScreen
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+        UIBackgroundModes:
+          - audio
+          - fetch
+          - processing
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.offlinebrowser.download
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIUserInterfaceStyle: Light
+    entitlements:
+      path: Resources/OfflineBrowser.entitlements
+      properties:
+        com.apple.developer.coremedia.allow-alternate-video-decoder-selection: true
+
+  OfflineBrowserTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: OfflineBrowser
