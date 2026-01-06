@@ -22,6 +22,9 @@ packages:
   FirebaseCrashlytics:
     url: https://github.com/firebase/firebase-ios-sdk
     from: "10.19.0"
+  FFmpegKit:
+    url: https://github.com/tylerjonesio/ffmpeg-kit-spm
+    from: "5.1.0"
 
 targets:
   OfflineBrowser:
@@ -40,6 +43,8 @@ targets:
       - package: GRDB
       - package: FirebaseCrashlytics
         product: FirebaseCrashlytics
+      - package: FFmpegKit
+        product: FFmpeg-Kit
     settings:
       base:
         INFOPLIST_FILE: Resources/Info.plist
@@ -87,3 +92,6 @@ targets:
       - path: Tests
     dependencies:
       - target: OfflineBrowser
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES

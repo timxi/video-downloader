@@ -4,10 +4,15 @@ import Combine
 
 final class FolderRepository {
     static let shared = FolderRepository()
+
+    // MARK: - Dependencies
+
     private let dbPool: DatabasePool
 
-    private init() {
-        self.dbPool = DatabaseManager.shared.databasePool
+    // MARK: - Initialization
+
+    init(dbPool: DatabasePool = DatabaseManager.shared.databasePool) {
+        self.dbPool = dbPool
     }
 
     // MARK: - CRUD Operations

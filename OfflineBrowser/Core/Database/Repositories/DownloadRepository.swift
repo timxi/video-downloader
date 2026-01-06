@@ -4,10 +4,20 @@ import Combine
 
 final class DownloadRepository {
     static let shared = DownloadRepository()
-    private let dbPool: DatabasePool
 
-    private init() {
-        self.dbPool = DatabaseManager.shared.databasePool
+    // MARK: - Dependencies
+
+    private let dbPool: DatabasePool
+    private let fileStorage: FileStorageManagerProtocol
+
+    // MARK: - Initialization
+
+    init(
+        dbPool: DatabasePool = DatabaseManager.shared.databasePool,
+        fileStorage: FileStorageManagerProtocol = FileStorageManager.shared
+    ) {
+        self.dbPool = dbPool
+        self.fileStorage = fileStorage
     }
 
     // MARK: - CRUD Operations
@@ -29,7 +39,7 @@ final class DownloadRepository {
             _ = try download.delete(db)
         }
         // Clean up temp files
-        FileStorageManager.shared.deleteTempFiles(for: download)
+        fileStorage.deleteTempFiles(for: download)
     }
 
     func deleteCompleted() throws {

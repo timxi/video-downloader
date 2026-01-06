@@ -4,10 +4,20 @@ import Combine
 
 final class VideoRepository {
     static let shared = VideoRepository()
-    private let dbPool: DatabasePool
 
-    private init() {
-        self.dbPool = DatabaseManager.shared.databasePool
+    // MARK: - Dependencies
+
+    private let dbPool: DatabasePool
+    private let fileStorage: FileStorageManagerProtocol
+
+    // MARK: - Initialization
+
+    init(
+        dbPool: DatabasePool = DatabaseManager.shared.databasePool,
+        fileStorage: FileStorageManagerProtocol = FileStorageManager.shared
+    ) {
+        self.dbPool = dbPool
+        self.fileStorage = fileStorage
     }
 
     // MARK: - CRUD Operations
@@ -29,7 +39,7 @@ final class VideoRepository {
             _ = try video.delete(db)
         }
         // Also delete associated files
-        FileStorageManager.shared.deleteVideoFiles(for: video)
+        fileStorage.deleteVideoFiles(for: video)
     }
 
     func deleteAll() throws {

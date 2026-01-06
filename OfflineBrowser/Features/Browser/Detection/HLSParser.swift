@@ -30,6 +30,16 @@ final class HLSParser {
         case noContent
     }
 
+    // MARK: - Dependencies
+
+    private let urlSession: URLSessionProtocol
+
+    // MARK: - Initialization
+
+    init(urlSession: URLSessionProtocol = URLSession.shared) {
+        self.urlSession = urlSession
+    }
+
     // MARK: - Public Methods
 
     func parse(url: URL, completion: @escaping (Result<HLSParsedInfo, ParseError>) -> Void) {
@@ -44,7 +54,7 @@ final class HLSParser {
             }
         }
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        urlSession.data(with: request) { [weak self] data, response, error in
             if let error = error {
                 completion(.failure(.networkError(error)))
                 return
@@ -168,7 +178,7 @@ final class HLSParser {
             }
         }
 
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        urlSession.data(with: request) { data, response, error in
             if let error = error {
                 hlsLogger.error("Failed to fetch variant: \(error.localizedDescription) - \(url.absoluteString)")
                 completion(nil)
@@ -281,9 +291,9 @@ final class HLSParser {
         completion(.success(info))
     }
 
-    // MARK: - Helpers
+    // MARK: - Helpers (internal for testing)
 
-    private func extractAttribute(from line: String, key: String) -> String? {
+    func extractAttribute(from line: String, key: String) -> String? {
         let pattern = "\(key)=([^,\\s]+|\"[^\"]+\")"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
               let match = regex.firstMatch(in: line, options: [], range: NSRange(line.startIndex..., in: line)),
@@ -293,7 +303,7 @@ final class HLSParser {
         return String(line[range]).replacingOccurrences(of: "\"", with: "")
     }
 
-    private func resolveURL(_ urlString: String, baseURL: URL) -> String {
+    func resolveURL(_ urlString: String, baseURL: URL) -> String {
         if urlString.hasPrefix("http://") || urlString.hasPrefix("https://") {
             return urlString
         }
@@ -346,7 +356,7 @@ final class HLSParser {
         return baseString + urlString
     }
 
-    private func formatResolution(_ resolution: String?) -> String {
+    func formatResolution(_ resolution: String?) -> String {
         guard let resolution = resolution else { return "Unknown" }
 
         let parts = resolution.split(separator: "x")

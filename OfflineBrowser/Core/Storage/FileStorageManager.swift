@@ -4,9 +4,14 @@ import AVFoundation
 final class FileStorageManager {
     static let shared = FileStorageManager()
 
-    private let fileManager = FileManager.default
+    // MARK: - Dependencies
 
-    private init() {
+    private let fileManager: FileManagerProtocol
+
+    // MARK: - Initialization
+
+    init(fileManager: FileManagerProtocol = FileManager.default) {
+        self.fileManager = fileManager
         createDirectoryStructure()
     }
 
