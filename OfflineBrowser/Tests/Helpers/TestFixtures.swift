@@ -4,6 +4,127 @@ import Foundation
 /// Factory methods for creating test data
 enum TestFixtures {
 
+    // MARK: - HLS Manifests
+
+    /// Master playlist with 2 quality variants
+    static let masterPlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,CODECS="avc1.64001f,mp4a.40.2"
+        1080p.m3u8
+        #EXT-X-STREAM-INF:BANDWIDTH=2500000,RESOLUTION=1280x720,CODECS="avc1.4d001f,mp4a.40.2"
+        720p.m3u8
+        """
+
+    /// Master playlist with subtitles and audio tracks
+    static let masterPlaylistWithSubtitles = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",DEFAULT=YES,LANGUAGE="en",URI="subs_en.m3u8"
+        #EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080,SUBTITLES="subs"
+        1080p.m3u8
+        """
+
+    /// Media playlist with 3 segments (VOD)
+    static let mediaPlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MEDIA-SEQUENCE:0
+        #EXTINF:10.0,
+        segment_0.ts
+        #EXTINF:10.0,
+        segment_1.ts
+        #EXTINF:8.5,
+        segment_2.ts
+        #EXT-X-ENDLIST
+        """
+
+    /// Live stream (no EXT-X-ENDLIST)
+    static let livePlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MEDIA-SEQUENCE:100
+        #EXTINF:10.0,
+        segment_100.ts
+        #EXTINF:10.0,
+        segment_101.ts
+        """
+
+    /// AES-128 encrypted playlist
+    static let encryptedPlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-KEY:METHOD=AES-128,URI="key.bin"
+        #EXTINF:10.0,
+        segment_0.ts
+        #EXTINF:10.0,
+        segment_1.ts
+        #EXT-X-ENDLIST
+        """
+
+    /// DRM-protected playlist (SAMPLE-AES)
+    static let drmProtectedPlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://license.example.com"
+        #EXTINF:10.0,
+        segment_0.ts
+        #EXT-X-ENDLIST
+        """
+
+    /// fMP4/CMAF playlist with EXT-X-MAP
+    static let fmp4Playlist = """
+        #EXTM3U
+        #EXT-X-VERSION:7
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MAP:URI="init.mp4"
+        #EXTINF:10.0,
+        segment_0.m4s
+        #EXTINF:10.0,
+        segment_1.m4s
+        #EXTINF:8.5,
+        segment_2.m4s
+        #EXT-X-ENDLIST
+        """
+
+    /// Playlist with absolute URLs
+    static let absoluteURLPlaylist = """
+        #EXTM3U
+        #EXT-X-VERSION:3
+        #EXT-X-TARGETDURATION:10
+        #EXTINF:10.0,
+        https://cdn.example.com/segment_0.ts
+        #EXTINF:10.0,
+        https://cdn.example.com/segment_1.ts
+        #EXT-X-ENDLIST
+        """
+
+    // MARK: - HLS Segment Factories
+
+    static func makeSegments(count: Int, baseDuration: Double = 10.0) -> [HLSSegment] {
+        (0..<count).map { index in
+            HLSSegment(
+                url: "https://example.com/segment_\(index).ts",
+                duration: index == count - 1 ? 8.5 : baseDuration, // Last segment slightly shorter
+                index: index
+            )
+        }
+    }
+
+    static func makeFMP4Segments(count: Int, baseDuration: Double = 10.0) -> [HLSSegment] {
+        (0..<count).map { index in
+            HLSSegment(
+                url: "https://example.com/segment_\(index).m4s",
+                duration: index == count - 1 ? 8.5 : baseDuration,
+                index: index
+            )
+        }
+    }
+
     // MARK: - StreamQuality Factories
 
     static func makeStreamQuality(
