@@ -1,4 +1,7 @@
 import Foundation
+import os.log
+
+private let hlsLogger = Logger(subsystem: "com.offlinebrowser.app", category: "HLSParser")
 
 struct HLSParsedInfo {
     var qualities: [StreamQuality]
@@ -7,6 +10,7 @@ struct HLSParsedInfo {
     var hasSubtitles: Bool
     var segments: [HLSSegment]?
     var encryptionKeyURL: String?
+    var totalDuration: TimeInterval?
 }
 
 struct HLSSegment {
@@ -29,6 +33,14 @@ final class HLSParser {
     func parse(url: URL, completion: @escaping (Result<HLSParsedInfo, ParseError>) -> Void) {
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
+
+        // Add cookies from shared cookie storage
+        if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+            let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)
+            for (key, value) in cookieHeader {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
 
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             if let error = error {
@@ -113,16 +125,80 @@ final class HLSParser {
             i += 1
         }
 
-        let info = HLSParsedInfo(
-            qualities: qualities.sortedByQuality,
-            isLive: false,
-            isDRMProtected: isDRMProtected,
-            hasSubtitles: hasSubtitles,
-            segments: nil,
-            encryptionKeyURL: nil
-        )
+        // Fetch duration from the first (highest quality) variant
+        let sortedQualities = qualities.sortedByQuality
+        if let firstQuality = sortedQualities.first, let variantURL = URL(string: firstQuality.url) {
+            fetchDurationFromVariant(url: variantURL) { duration in
+                let info = HLSParsedInfo(
+                    qualities: sortedQualities,
+                    isLive: false,
+                    isDRMProtected: isDRMProtected,
+                    hasSubtitles: hasSubtitles,
+                    segments: nil,
+                    encryptionKeyURL: nil,
+                    totalDuration: duration
+                )
+                completion(.success(info))
+            }
+        } else {
+            let info = HLSParsedInfo(
+                qualities: sortedQualities,
+                isLive: false,
+                isDRMProtected: isDRMProtected,
+                hasSubtitles: hasSubtitles,
+                segments: nil,
+                encryptionKeyURL: nil,
+                totalDuration: nil
+            )
+            completion(.success(info))
+        }
+    }
 
-        completion(.success(info))
+    private func fetchDurationFromVariant(url: URL, completion: @escaping (TimeInterval?) -> Void) {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+
+        // Add cookies from shared cookie storage
+        if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+            let cookieHeader = HTTPCookie.requestHeaderFields(with: cookies)
+            for (key, value) in cookieHeader {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                hlsLogger.error("Failed to fetch variant: \(error.localizedDescription) - \(url.absoluteString)")
+                completion(nil)
+                return
+            }
+
+            guard let data = data,
+                  let content = String(data: data, encoding: .utf8) else {
+                hlsLogger.warning("No content from variant URL: \(url.absoluteString)")
+                completion(nil)
+                return
+            }
+
+            // Parse segment durations from the variant playlist
+            var totalDuration: TimeInterval = 0
+            var segmentCount = 0
+            let lines = content.components(separatedBy: .newlines)
+
+            for line in lines {
+                let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+                if trimmedLine.hasPrefix("#EXTINF:") {
+                    if let durationString = trimmedLine.dropFirst("#EXTINF:".count).split(separator: ",").first,
+                       let duration = Double(durationString) {
+                        totalDuration += duration
+                        segmentCount += 1
+                    }
+                }
+            }
+
+            hlsLogger.info("Variant duration: \(totalDuration, format: .fixed(precision: 1))s (\(segmentCount) segments) from \(url.lastPathComponent)")
+            completion(totalDuration > 0 ? totalDuration : nil)
+        }.resume()
     }
 
     // MARK: - Media Playlist Parsing
@@ -174,13 +250,17 @@ final class HLSParser {
             }
         }
 
+        // Calculate total duration from segments
+        let totalDuration = segments.reduce(0.0) { $0 + $1.duration }
+
         let info = HLSParsedInfo(
             qualities: [],
             isLive: isLive,
             isDRMProtected: isDRMProtected,
             hasSubtitles: false,
             segments: segments,
-            encryptionKeyURL: encryptionKeyURL
+            encryptionKeyURL: encryptionKeyURL,
+            totalDuration: totalDuration > 0 ? totalDuration : nil
         )
 
         completion(.success(info))

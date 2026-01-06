@@ -58,7 +58,19 @@
         /vpaid/i,
         /vast.*\.xml/i,
         /ima3/i,
-        /imasdk/i
+        /imasdk/i,
+        // iyf.tv specific ad patterns
+        /adx\.m3u8/i,
+        /ad_.*\.m3u8/i,
+        /.*_ad\.m3u8/i,
+        /advertisement/i,
+        // Common Chinese video site ad patterns
+        /guanggao/i,    // Chinese for advertisement
+        /qianpian/i,    // pre-roll
+        /tiepian/i,     // post-roll
+        // Ad CDN domains
+        /global-cdn\.me/i,
+        /s1-a1\.global-cdn/i
     ];
 
     function isAdURL(url) {
@@ -127,15 +139,13 @@
         else if (normalizedUrl.match(/\.(mp4|webm|m4v|mov|avi|mkv|flv|f4v)(\?|$|#)/i)) {
             type = 'direct';
         }
-        // Check for common video CDN patterns
+        // Check for common video CDN patterns (segment files indicate HLS)
         else if (normalizedUrl.includes('/video/') &&
-                 (normalizedUrl.includes('.ts') || normalizedUrl.includes('seg'))) {
+                 (normalizedUrl.includes('.ts') || normalizedUrl.includes('seg')) &&
+                 !normalizedUrl.includes('/api/')) {
             type = 'hls';
         }
-        // Check for video API patterns
-        else if (normalizedUrl.includes('/play/') && normalizedUrl.includes('video')) {
-            type = 'direct';
-        }
+        // Note: Removed overly broad /play/ pattern - was detecting API endpoints
 
         if (type) {
             sendToNative(normalizedUrl, type);

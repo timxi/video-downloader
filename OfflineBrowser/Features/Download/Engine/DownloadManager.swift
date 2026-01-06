@@ -90,16 +90,19 @@ final class DownloadManager: ObservableObject {
     private func createAndQueueDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, cookies: [HTTPCookie]) {
         guard let url = URL(string: stream.url) else { return }
 
+        // Use page URL domain for folder organization, fallback to stream URL domain
+        let folderDomain = pageURL?.host ?? url.host
+
         let download = Download(
             videoURL: stream.url,
             manifestURL: stream.type == .hls ? stream.url : nil,
             pageTitle: pageTitle,
             pageURL: pageURL?.absoluteString,
-            sourceDomain: url.host,
+            sourceDomain: folderDomain,
             quality: stream.qualities?.first?.resolution
         )
 
-        print("[DownloadManager] Creating download with \(cookies.count) cookies for domain: \(url.host ?? "unknown")")
+        print("[DownloadManager] Creating download with \(cookies.count) cookies for page domain: \(folderDomain ?? "unknown")")
 
         do {
             try DownloadRepository.shared.save(download)
