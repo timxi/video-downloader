@@ -29,6 +29,7 @@ final class FFmpegMuxer {
         directory: URL,
         outputURL: URL,
         encryptionKey: Data?,
+        isFMP4: Bool = false,
         completion: @escaping (Result<URL, Error>) -> Void
     ) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
@@ -36,7 +37,8 @@ final class FFmpegMuxer {
                 let result = try self?.performMuxing(
                     directory: directory,
                     outputURL: outputURL,
-                    encryptionKey: encryptionKey
+                    encryptionKey: encryptionKey,
+                    isFMP4: isFMP4
                 )
 
                 guard let finalURL = result else {
@@ -62,20 +64,30 @@ final class FFmpegMuxer {
     private func performMuxing(
         directory: URL,
         outputURL: URL,
-        encryptionKey: Data?
+        encryptionKey: Data?,
+        isFMP4: Bool = false
     ) throws -> URL {
         let fileManager = FileManager.default
 
         NSLog("[FFmpegMuxer] Looking for segments in: %@", directory.path)
+        NSLog("[FFmpegMuxer] Stream format: %@", isFMP4 ? "fMP4/CMAF" : "MPEG-TS")
 
         // Get all segment files sorted by index number
+        let segmentExtension = isFMP4 ? "m4s" : "ts"
         let segmentFiles = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.fileSizeKey])
-            .filter { $0.pathExtension == "ts" }
+            .filter { $0.pathExtension == segmentExtension }
             .sorted { file1, file2 in
-                let num1 = extractSegmentNumber(from: file1.lastPathComponent)
-                let num2 = extractSegmentNumber(from: file2.lastPathComponent)
+                let num1 = extractSegmentNumber(from: file1.lastPathComponent, isFMP4: isFMP4)
+                let num2 = extractSegmentNumber(from: file2.lastPathComponent, isFMP4: isFMP4)
                 return num1 < num2
             }
+
+        // Check for init segment for fMP4
+        let initSegmentPath = directory.appendingPathComponent("init.mp4")
+        let hasInitSegment = isFMP4 && fileManager.fileExists(atPath: initSegmentPath.path)
+        if isFMP4 {
+            NSLog("[FFmpegMuxer] Init segment exists: %@", hasInitSegment ? "yes" : "no")
+        }
 
         NSLog("[FFmpegMuxer] Found %d segment files", segmentFiles.count)
 
@@ -96,10 +108,19 @@ final class FFmpegMuxer {
 
         // Create concat file for FFmpeg
         let concatListURL = directory.appendingPathComponent("concat.txt")
-        let concatContent = segmentFiles.map { "file '\($0.path)'" }.joined(separator: "\n")
+
+        // For fMP4, prepend init segment to the file list
+        var filesToConcat: [URL] = []
+        if hasInitSegment {
+            filesToConcat.append(initSegmentPath)
+            NSLog("[FFmpegMuxer] Added init segment to concat list")
+        }
+        filesToConcat.append(contentsOf: segmentFiles)
+
+        let concatContent = filesToConcat.map { "file '\($0.path)'" }.joined(separator: "\n")
         try concatContent.write(to: concatListURL, atomically: true, encoding: .utf8)
 
-        NSLog("[FFmpegMuxer] Created concat file at: %@", concatListURL.path)
+        NSLog("[FFmpegMuxer] Created concat file at: %@ with %d files", concatListURL.path, filesToConcat.count)
 
         // Output MP4 file
         let mp4OutputURL = outputURL.deletingPathExtension().appendingPathExtension("mp4")
@@ -114,8 +135,29 @@ final class FFmpegMuxer {
         // -safe 0: allow absolute paths
         // -i: input concat file
         // -c copy: copy streams without re-encoding (fast)
-        // -bsf:a aac_adtstoasc: convert AAC from ADTS to ASC format for MP4 container
-        let command = "-f concat -safe 0 -i \"\(concatListURL.path)\" -c copy -bsf:a aac_adtstoasc \"\(mp4OutputURL.path)\""
+        // For MPEG-TS: -bsf:a aac_adtstoasc: convert AAC from ADTS to ASC format
+        // For fMP4: no bitstream filter needed, audio is already in correct format
+        let command: String
+        if isFMP4 {
+            // For fMP4/CMAF, just copy streams without bitstream filter
+            command = "-f concat -safe 0 -i \"\(concatListURL.path)\" -c copy \"\(mp4OutputURL.path)\""
+        } else {
+            // For MPEG-TS, apply AAC bitstream filter
+            command = "-f concat -safe 0 -i \"\(concatListURL.path)\" -c copy -bsf:a aac_adtstoasc \"\(mp4OutputURL.path)\""
+        }
+
+        // For fMP4, skip FFmpeg concat demuxer - it can't handle fMP4 segments properly
+        // Binary concatenation (init + segments) works correctly for fMP4/CMAF
+        if isFMP4 {
+            NSLog("[FFmpegMuxer] Using binary concatenation for fMP4 stream")
+            try? fileManager.removeItem(at: concatListURL)
+            try concatenateSegments(files: filesToConcat, outputURL: mp4OutputURL)
+
+            let outputSize = (try? fileManager.attributesOfItem(atPath: mp4OutputURL.path)[.size] as? Int64) ?? 0
+            NSLog("[FFmpegMuxer] fMP4 concatenation succeeded - output size: %lld bytes", outputSize)
+
+            return mp4OutputURL
+        }
 
         NSLog("[FFmpegMuxer] Executing FFmpeg command: %@", command)
 
@@ -131,31 +173,39 @@ final class FFmpegMuxer {
         try? fileManager.removeItem(at: concatListURL)
 
         if ReturnCode.isSuccess(returnCode) {
-            // Verify output file exists
+            // Verify output file exists and has reasonable size
             guard fileManager.fileExists(atPath: mp4OutputURL.path) else {
                 NSLog("[FFmpegMuxer] ERROR: Output file not created")
                 throw MuxerError.outputNotCreated
             }
 
             let outputSize = (try? fileManager.attributesOfItem(atPath: mp4OutputURL.path)[.size] as? Int64) ?? 0
-            NSLog("[FFmpegMuxer] FFmpeg muxing succeeded - output size: %lld bytes", outputSize)
+            NSLog("[FFmpegMuxer] FFmpeg muxing completed - output size: %lld bytes", outputSize)
 
-            return mp4OutputURL
-        } else {
-            // Log FFmpeg output for debugging
-            if let logs = session?.getAllLogsAsString() {
-                let logSuffix = String(logs.suffix(500))
-                NSLog("[FFmpegMuxer] FFmpeg logs: %@", logSuffix)
+            // Check if output is too small (FFmpeg may return success but produce empty file)
+            let minExpectedSize = totalSize / 2  // Expect at least half the input size
+            if outputSize >= minExpectedSize {
+                return mp4OutputURL
             }
-
-            NSLog("[FFmpegMuxer] FFmpeg muxing failed, trying fallback...")
-
-            // Fallback to simple TS concatenation
-            let tsOutputURL = outputURL.deletingPathExtension().appendingPathExtension("ts")
-            try concatenateSegments(files: segmentFiles, outputURL: tsOutputURL)
-
-            return tsOutputURL
+            NSLog("[FFmpegMuxer] WARNING: Output too small (%lld < %lld), falling back to concatenation", outputSize, minExpectedSize)
         }
+
+        // Log FFmpeg output for debugging
+        if let logs = session?.getAllLogsAsString() {
+            let logSuffix = String(logs.suffix(500))
+            NSLog("[FFmpegMuxer] FFmpeg logs: %@", logSuffix)
+        }
+
+        NSLog("[FFmpegMuxer] FFmpeg muxing failed or incomplete, trying fallback...")
+
+        // Fallback to simple concatenation
+        // For fMP4, concatenated segments (with init) form valid MP4
+        // For TS, output as .ts
+        let fallbackExtension = isFMP4 ? "mp4" : "ts"
+        let fallbackOutputURL = outputURL.deletingPathExtension().appendingPathExtension(fallbackExtension)
+        try concatenateSegments(files: filesToConcat, outputURL: fallbackOutputURL)
+
+        return fallbackOutputURL
     }
 
     private func concatenateSegments(files: [URL], outputURL: URL) throws {
@@ -186,8 +236,10 @@ final class FFmpegMuxer {
         NSLog("[FFmpegMuxer] Finished concatenating %d segments", files.count)
     }
 
-    private func extractSegmentNumber(from filename: String) -> Int {
-        let pattern = "_(\\d+)\\.ts$"
+    private func extractSegmentNumber(from filename: String, isFMP4: Bool = false) -> Int {
+        // Match segment_N.ts or segment_N.m4s
+        let ext = isFMP4 ? "m4s" : "ts"
+        let pattern = "_(\\d+)\\.\(ext)$"
         guard let regex = try? NSRegularExpression(pattern: pattern, options: []),
               let match = regex.firstMatch(in: filename, options: [], range: NSRange(filename.startIndex..., in: filename)),
               let range = Range(match.range(at: 1), in: filename) else {

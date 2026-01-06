@@ -6,9 +6,13 @@
     // Track detected URLs to avoid duplicates
     const detectedURLs = new Set();
 
+    // Track MP4 URLs by domain to limit spam
+    const mp4ByDomain = new Map();
+
     // Expose a function to clear detected URLs (called from native on refresh/navigation)
     window.__offlineBrowserClearDetected = function() {
         detectedURLs.clear();
+        mp4ByDomain.clear();
         console.log('[OfflineBrowser] Cleared detected URLs');
     };
 
@@ -78,6 +82,24 @@
         return adPatterns.some(pattern => pattern.test(url));
     }
 
+    // Patterns that indicate video segments (not full videos)
+    const segmentPatterns = [
+        /seg-\d+/i,           // seg-1, seg-2, etc
+        /segment[\-_]?\d+/i,  // segment1, segment-1
+        /frag[\-_]?\d+/i,     // frag1, frag-1
+        /chunk[\-_]?\d+/i,    // chunk1, chunk-1
+        /part[\-_]?\d+/i,     // part1, part-1
+        /\d+\.ts$/i,          // numbered .ts files
+        /init\.mp4/i,         // initialization segment
+        /\-\d{5,}\.mp4/i,     // long numbered mp4 (like -00001.mp4)
+        /\/\d+\/\d+\.mp4/i,   // /1/2.mp4 pattern
+    ];
+
+    function isVideoSegment(url) {
+        if (!url) return false;
+        return segmentPatterns.some(pattern => pattern.test(url));
+    }
+
     function sendToNative(url, type) {
         if (!url || typeof url !== 'string') return;
         if (url.startsWith('data:') || url.startsWith('blob:')) return;
@@ -87,6 +109,25 @@
         if (isAdURL(url)) {
             console.log('[OfflineBrowser] Filtered ad URL:', url);
             return;
+        }
+
+        // Filter out video segments for direct videos
+        if (type === 'direct' && isVideoSegment(url)) {
+            console.log('[OfflineBrowser] Filtered segment URL:', url);
+            return;
+        }
+
+        // For direct MP4, limit to 3 per domain to avoid spam
+        if (type === 'direct') {
+            try {
+                const domain = new URL(url).hostname;
+                const count = mp4ByDomain.get(domain) || 0;
+                if (count >= 3) {
+                    console.log('[OfflineBrowser] Filtered excess MP4 from domain:', domain);
+                    return;
+                }
+                mp4ByDomain.set(domain, count + 1);
+            } catch (e) {}
         }
 
         detectedURLs.add(url);

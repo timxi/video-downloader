@@ -11,6 +11,8 @@ struct HLSParsedInfo {
     var segments: [HLSSegment]?
     var encryptionKeyURL: String?
     var totalDuration: TimeInterval?
+    var initSegmentURL: String?  // For fMP4/CMAF streams (EXT-X-MAP)
+    var isFMP4: Bool = false     // True if stream uses fMP4 segments
 }
 
 struct HLSSegment {
@@ -208,6 +210,8 @@ final class HLSParser {
         var isLive = true
         var isDRMProtected = false
         var encryptionKeyURL: String?
+        var initSegmentURL: String?
+        var isFMP4 = false
 
         var currentDuration: Double = 0
         var segmentIndex = 0
@@ -218,6 +222,15 @@ final class HLSParser {
             // Check for live vs VOD
             if trimmedLine.hasPrefix("#EXT-X-ENDLIST") {
                 isLive = false
+            }
+
+            // Check for fMP4/CMAF initialization segment (EXT-X-MAP)
+            if trimmedLine.hasPrefix("#EXT-X-MAP") {
+                isFMP4 = true
+                if let uri = extractAttribute(from: trimmedLine, key: "URI") {
+                    initSegmentURL = resolveURL(uri.replacingOccurrences(of: "\"", with: ""), baseURL: baseURL)
+                    hlsLogger.info("Detected fMP4 stream with init segment: \(initSegmentURL ?? "unknown")")
+                }
             }
 
             // Check for encryption
@@ -260,7 +273,9 @@ final class HLSParser {
             hasSubtitles: false,
             segments: segments,
             encryptionKeyURL: encryptionKeyURL,
-            totalDuration: totalDuration > 0 ? totalDuration : nil
+            totalDuration: totalDuration > 0 ? totalDuration : nil,
+            initSegmentURL: initSegmentURL,
+            isFMP4: isFMP4
         )
 
         completion(.success(info))
@@ -283,17 +298,28 @@ final class HLSParser {
             return urlString
         }
 
+        // Strip fragment identifier from base URL
+        var cleanBaseURL = baseURL
+        if baseURL.fragment != nil {
+            var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+            components?.fragment = nil
+            if let cleaned = components?.url {
+                cleanBaseURL = cleaned
+            }
+        }
+
         if urlString.hasPrefix("/") {
             // Absolute path
-            var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+            var components = URLComponents(url: cleanBaseURL, resolvingAgainstBaseURL: false)
             components?.path = urlString
             components?.query = nil
+            components?.fragment = nil
             return components?.url?.absoluteString ?? urlString
         }
 
         // Relative path - need to handle query strings properly
         // Don't use appendingPathComponent as it URL-encodes special characters like ?
-        let base = baseURL.deletingLastPathComponent()
+        let base = cleanBaseURL.deletingLastPathComponent()
 
         // Construct URL manually to preserve query parameters in segment URL
         var baseString = base.absoluteString
@@ -304,6 +330,14 @@ final class HLSParser {
         // Remove any query string from the base URL before appending
         if let queryStart = baseString.firstIndex(of: "?") {
             baseString = String(baseString[..<queryStart])
+            if !baseString.hasSuffix("/") {
+                baseString += "/"
+            }
+        }
+
+        // Also remove any fragment identifier
+        if let fragmentStart = baseString.firstIndex(of: "#") {
+            baseString = String(baseString[..<fragmentStart])
             if !baseString.hasSuffix("/") {
                 baseString += "/"
             }

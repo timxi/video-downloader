@@ -20,7 +20,19 @@ class DownloadOptionsSheet: UIViewController {
     // MARK: - Initialization
 
     init(streams: [DetectedStream], pageTitle: String?, pageURL: URL?) {
-        self.streams = streams
+        // Filter streams: if HLS streams exist, hide direct MP4 (they're usually segments)
+        let hlsStreams = streams.filter { $0.type == .hls }
+        let filteredStreams: [DetectedStream]
+
+        if !hlsStreams.isEmpty {
+            // Prefer HLS streams, only show direct if no HLS available
+            filteredStreams = hlsStreams
+        } else {
+            // No HLS, keep direct streams but limit to reasonable number
+            filteredStreams = Array(streams.prefix(5))
+        }
+
+        self.streams = filteredStreams
         self.pageTitle = pageTitle
         self.pageURL = pageURL
         super.init(nibName: nil, bundle: nil)

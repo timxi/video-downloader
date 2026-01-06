@@ -80,8 +80,13 @@ final class FileStorageManager {
         return directory
     }
 
-    func segmentPath(for downloadID: UUID, index: Int) -> URL {
-        segmentsDirectory(for: downloadID).appendingPathComponent("segment_\(index).ts")
+    func segmentPath(for downloadID: UUID, index: Int, isFMP4: Bool = false) -> URL {
+        let ext = isFMP4 ? "m4s" : "ts"
+        return segmentsDirectory(for: downloadID).appendingPathComponent("segment_\(index).\(ext)")
+    }
+
+    func initSegmentPath(for downloadID: UUID) -> URL {
+        segmentsDirectory(for: downloadID).appendingPathComponent("init.mp4")
     }
 
     // MARK: - Cleanup
@@ -184,7 +189,9 @@ final class FileStorageManager {
         guard let files = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
             return []
         }
-        return files.filter { $0.pathExtension == "ts" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        // Support both .ts and .m4s segment extensions
+        return files.filter { $0.pathExtension == "ts" || $0.pathExtension == "m4s" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
     func segmentCount(for downloadID: UUID) -> Int {

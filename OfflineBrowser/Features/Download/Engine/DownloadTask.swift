@@ -27,6 +27,10 @@ final class DownloadTask {
 
     private var currentSegmentIndex = 0
 
+    // fMP4/CMAF support
+    private var isFMP4 = false
+    private var initSegmentURL: String?
+
     enum TaskError: Error {
         case cancelled
         case invalidURL
@@ -179,15 +183,25 @@ final class DownloadTask {
             else if let segments = info.segments, !segments.isEmpty {
                 NSLog("[DownloadTask] Found %d segments to download", segments.count)
                 self.segments = segments
+                self.isFMP4 = info.isFMP4
+                self.initSegmentURL = info.initSegmentURL
+
+                if info.isFMP4 {
+                    NSLog("[DownloadTask] Stream uses fMP4 format (CMAF)")
+                }
 
                 // Download encryption key if needed
                 if let keyURL = info.encryptionKeyURL, let url = URL(string: keyURL) {
                     NSLog("[DownloadTask] Downloading encryption key from: %@", keyURL)
                     downloadEncryptionKey(url: url) { [weak self] in
-                        self?.startSegmentDownloads()
+                        self?.downloadInitSegmentIfNeeded {
+                            self?.startSegmentDownloads()
+                        }
                     }
                 } else {
-                    startSegmentDownloads()
+                    downloadInitSegmentIfNeeded { [weak self] in
+                        self?.startSegmentDownloads()
+                    }
                 }
             } else {
                 NSLog("[DownloadTask] ERROR: No segments found in manifest")
@@ -261,6 +275,61 @@ final class DownloadTask {
         }.resume()
     }
 
+    private func downloadInitSegmentIfNeeded(completion: @escaping () -> Void) {
+        guard isFMP4, let initURLString = initSegmentURL, let initURL = URL(string: initURLString) else {
+            // Not fMP4 or no init segment - proceed immediately
+            completion()
+            return
+        }
+
+        NSLog("[DownloadTask] Downloading fMP4 initialization segment from: %@", initURLString)
+
+        // Create temp directory first if needed
+        do {
+            _ = try FileStorageManager.shared.createTempDirectory(for: download.id)
+        } catch {
+            NSLog("[DownloadTask] ERROR: Failed to create temp directory: %@", error.localizedDescription)
+            completion()
+            return
+        }
+
+        let destinationURL = FileStorageManager.shared.initSegmentPath(for: download.id)
+        let request = createRequest(for: initURL)
+
+        URLSession.shared.downloadTask(with: request) { [weak self] tempURL, response, error in
+            guard let self = self else {
+                completion()
+                return
+            }
+
+            if let error = error {
+                NSLog("[DownloadTask] ERROR: Failed to download init segment: %@", error.localizedDescription)
+                completion()
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse {
+                NSLog("[DownloadTask] Init segment response status: %d", httpResponse.statusCode)
+            }
+
+            guard let tempURL = tempURL else {
+                NSLog("[DownloadTask] ERROR: No temp URL for init segment")
+                completion()
+                return
+            }
+
+            do {
+                try FileStorageManager.shared.moveFile(from: tempURL, to: destinationURL)
+                let size = FileStorageManager.shared.fileSize(at: destinationURL) ?? 0
+                NSLog("[DownloadTask] Init segment saved: %@ - %lld bytes", destinationURL.lastPathComponent, size)
+            } catch {
+                NSLog("[DownloadTask] ERROR: Failed to save init segment: %@", error.localizedDescription)
+            }
+
+            completion()
+        }.resume()
+    }
+
     private func startSegmentDownloads() {
         NSLog("[DownloadTask] startSegmentDownloads - %d total segments", segments.count)
         // Create temp directory
@@ -302,7 +371,7 @@ final class DownloadTask {
             return
         }
 
-        let destinationURL = FileStorageManager.shared.segmentPath(for: download.id, index: segment.index)
+        let destinationURL = FileStorageManager.shared.segmentPath(for: download.id, index: segment.index, isFMP4: isFMP4)
         NSLog("[DownloadTask] Downloading segment %d to: %@", currentSegmentIndex, destinationURL.path)
 
         downloadSegment(from: url, to: destinationURL) { [weak self] result in
@@ -436,7 +505,8 @@ final class DownloadTask {
         FFmpegMuxer.shared.muxHLSSegments(
             directory: segmentsDir,
             outputURL: outputURL,
-            encryptionKey: encryptionKeyData
+            encryptionKey: encryptionKeyData,
+            isFMP4: isFMP4
         ) { [weak self] result in
             guard let self = self else { return }
 

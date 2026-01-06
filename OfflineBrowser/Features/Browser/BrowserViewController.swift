@@ -95,7 +95,10 @@ class BrowserViewController: UIViewController {
         streamDetector.$detectedStreams
             .receive(on: DispatchQueue.main)
             .sink { [weak self] streams in
-                self?.updateFloatingPill(streamCount: streams.count)
+                // Apply same filtering as DownloadOptionsSheet: prefer HLS over direct
+                let hlsStreams = streams.filter { $0.type == .hls }
+                let filteredCount = hlsStreams.isEmpty ? min(streams.count, 5) : hlsStreams.count
+                self?.updateFloatingPill(streamCount: filteredCount)
             }
             .store(in: &cancellables)
 
