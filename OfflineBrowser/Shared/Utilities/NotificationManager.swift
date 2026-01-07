@@ -4,7 +4,34 @@ import UIKit
 final class NotificationManager {
     static let shared = NotificationManager()
 
-    private init() {}
+    // Notification categories
+    static let downloadCompleteCategory = "DOWNLOAD_COMPLETE"
+    static let downloadFailedCategory = "DOWNLOAD_FAILED"
+
+    private init() {
+        registerCategories()
+    }
+
+    // MARK: - Setup
+
+    private func registerCategories() {
+        let completeCategory = UNNotificationCategory(
+            identifier: Self.downloadCompleteCategory,
+            actions: [],
+            intentIdentifiers: []
+        )
+
+        let failedCategory = UNNotificationCategory(
+            identifier: Self.downloadFailedCategory,
+            actions: [],
+            intentIdentifiers: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([
+            completeCategory,
+            failedCategory
+        ])
+    }
 
     // MARK: - Authorization
 
@@ -13,6 +40,7 @@ final class NotificationManager {
             if let error = error {
                 print("Notification authorization error: \(error)")
             }
+            print("Notification authorization granted: \(granted)")
         }
     }
 
@@ -27,6 +55,7 @@ final class NotificationManager {
         content.title = "Download Complete"
         content.body = title
         content.sound = .default
+        content.categoryIdentifier = Self.downloadCompleteCategory
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
@@ -42,6 +71,7 @@ final class NotificationManager {
         content.title = "Download Failed"
         content.body = title
         content.sound = .default
+        content.categoryIdentifier = Self.downloadFailedCategory
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,

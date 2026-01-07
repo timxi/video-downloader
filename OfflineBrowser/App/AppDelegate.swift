@@ -1,5 +1,9 @@
 import UIKit
 import BackgroundTasks
+import UserNotifications
+import AVFoundation
+import FirebaseCore
+import FirebaseCrashlytics
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -11,6 +15,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
+        // Initialize Firebase (only if GoogleService-Info.plist exists)
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+
+            // Enable Crashlytics - disabled in DEBUG builds
+            #if DEBUG
+            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(false)
+            #else
+            Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
+            #endif
+        } else {
+            print("[AppDelegate] GoogleService-Info.plist not found - Firebase disabled")
+        }
+
         // Initialize database
         DatabaseManager.shared.initialize()
 
@@ -19,6 +37,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Configure audio session for background playback
         configureAudioSession()
+
+        // Set notification delegate
+        UNUserNotificationCenter.current().delegate = self
 
         return true
     }
@@ -83,4 +104,44 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-import AVFoundation
+// MARK: - UNUserNotificationCenterDelegate
+
+extension AppDelegate: UNUserNotificationCenterDelegate {
+
+    // Handle notification tap when app is in background/terminated
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let categoryIdentifier = response.notification.request.content.categoryIdentifier
+
+        if categoryIdentifier == NotificationManager.downloadCompleteCategory ||
+           categoryIdentifier == NotificationManager.downloadFailedCategory {
+            // Navigate to Library tab
+            navigateToLibrary()
+        }
+
+        completionHandler()
+    }
+
+    // Show notification even when app is in foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
+
+    private func navigateToLibrary() {
+        DispatchQueue.main.async {
+            guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = scene.windows.first,
+                  let tabBarController = window.rootViewController as? UITabBarController else {
+                return
+            }
+            tabBarController.selectedIndex = 1 // Library tab
+        }
+    }
+}

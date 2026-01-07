@@ -56,11 +56,14 @@ final class HLSParser {
 
         urlSession.data(with: request) { [weak self] data, response, error in
             if let error = error {
+                CrashReporter.shared.logParseError(error, manifestURL: url.absoluteString)
                 completion(.failure(.networkError(error)))
                 return
             }
 
             guard let data = data, let content = String(data: data, encoding: .utf8) else {
+                let error = NSError(domain: "HLSParser", code: -1, userInfo: [NSLocalizedDescriptionKey: "No content"])
+                CrashReporter.shared.logParseError(error, manifestURL: url.absoluteString)
                 completion(.failure(.noContent))
                 return
             }

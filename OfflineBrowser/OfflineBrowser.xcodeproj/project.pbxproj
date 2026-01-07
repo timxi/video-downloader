@@ -52,6 +52,7 @@
 		7A08834019AA12FA52B24D48 /* RetryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F480380E4FFA54B112E6234 /* RetryPolicyTests.swift */; };
 		7B1DF86C54D01A2245425DD9 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58080988716047787EC87CF6 /* LibraryView.swift */; };
 		83F37EDB14934992E6B8E332 /* VideoRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8914F4FFC4F40F852B27291 /* VideoRepository.swift */; };
+		8701B547A28A16F375E10A52 /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8BAEC61A2130685BEC47630 /* CrashReporter.swift */; };
 		87412FB9C09B23965ADD8BA1 /* BrowserNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EE2865F237BBEE6C443E4DF /* BrowserNavigationBar.swift */; };
 		886F97CA61166C10A970CD89 /* SleepTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A19AE7B024D99C1FD8D3BAC7 /* SleepTimerSheet.swift */; };
 		8E053B20FF2D365506104998 /* FFmpegMuxerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1AF40E21ED45E8FEE2FF898 /* FFmpegMuxerTests.swift */; };
@@ -182,6 +183,7 @@
 		C1AF40E21ED45E8FEE2FF898 /* FFmpegMuxerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegMuxerTests.swift; sourceTree = "<group>"; };
 		C210B98D550D7AFD393B4E1A /* HLSParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSParser.swift; sourceTree = "<group>"; };
 		C4E607D1FD19DBA58F83E7C1 /* MockRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRepositories.swift; sourceTree = "<group>"; };
+		C8BAEC61A2130685BEC47630 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		CC74169205300ECFFDA5A3E0 /* DASHParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DASHParserTests.swift; sourceTree = "<group>"; };
 		DDEF1A249B22211D9406D45B /* DownloadTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTask.swift; sourceTree = "<group>"; };
 		DE2CDB5F3FD41A74E8B61516 /* DownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManager.swift; sourceTree = "<group>"; };
@@ -368,6 +370,7 @@
 		526EB878B146AC50C85FE1FB /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				C8BAEC61A2130685BEC47630 /* CrashReporter.swift */,
 				6DE8D532E899A405A78EDDBF /* NetworkMonitor.swift */,
 				2682E98B4956F388E4C22FF2 /* NotificationManager.swift */,
 			);
@@ -725,6 +728,7 @@
 				A99FCAC22D654779535F07B2 /* BrowserViewController.swift in Sources */,
 				33D2BBC1FAE61C7B1F33B796 /* ContentRuleListManager.swift in Sources */,
 				493614587CF854CE8391E847 /* CookieManager.swift in Sources */,
+				8701B547A28A16F375E10A52 /* CrashReporter.swift in Sources */,
 				76726468C09D27D6D6B19E8E /* DASHParser.swift in Sources */,
 				51EBE1064231945DCFE872DB /* DASHParserProtocol.swift in Sources */,
 				A1D8986E23433E00EA933DBF /* DatabaseManager.swift in Sources */,

@@ -159,6 +159,12 @@ final class DownloadManager: ObservableObject {
     private func createAndQueueDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, thumbnailURL: String? = nil, cookies: [HTTPCookie]) {
         guard let url = URL(string: stream.url) else { return }
 
+        // Request notification permission on first download
+        if !PreferenceRepository.shared.getBool(.hasRequestedNotificationPermission) {
+            NotificationManager.shared.requestAuthorization()
+            PreferenceRepository.shared.setBool(.hasRequestedNotificationPermission, value: true)
+        }
+
         // Use page URL domain for folder organization, fallback to stream URL domain
         let folderDomain = pageURL?.host ?? url.host
 
@@ -398,6 +404,13 @@ extension DownloadManager: DownloadTaskDelegate {
 
     func downloadTask(_ task: DownloadTaskProtocol, didFailWithError error: Error) {
         guard let download = activeDownload else { return }
+
+        // Log to Crashlytics
+        CrashReporter.shared.logDownloadError(
+            error,
+            url: download.videoURL,
+            retryCount: download.retryCount
+        )
 
         try? downloadRepository.markFailed(download, error: error.localizedDescription)
         notificationManager.showDownloadFailed(title: download.pageTitle ?? "Video")

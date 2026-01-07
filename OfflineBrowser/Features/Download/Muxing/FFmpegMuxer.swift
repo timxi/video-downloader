@@ -52,6 +52,10 @@ final class FFmpegMuxer {
                     completion(.success(finalURL))
                 }
             } catch {
+                // Log muxing error to Crashlytics
+                let segmentCount = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil).count) ?? 0
+                CrashReporter.shared.logMuxError(error, segmentCount: segmentCount)
+
                 DispatchQueue.main.async {
                     completion(.failure(error))
                 }

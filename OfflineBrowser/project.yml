@@ -39,6 +39,8 @@ targets:
     resources:
       - path: Resources/Assets.xcassets
       - path: Resources/NetworkInterceptor.js
+      - path: Resources/GoogleService-Info.plist
+        optional: true
     dependencies:
       - package: GRDB
       - package: FirebaseCrashlytics

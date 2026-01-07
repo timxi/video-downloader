@@ -39,6 +39,9 @@ enum PreferenceKey: String {
 
     // Statistics
     case totalDownloadsCount = "stats.downloadCount"
+
+    // Notifications
+    case hasRequestedNotificationPermission = "notifications.hasRequestedPermission"
 }
 
 // MARK: - Default Values
@@ -60,7 +63,8 @@ extension PreferenceKey {
             return "system"
         case .hasSeenDownloadPillHint,
              .hasSeenGestureHint,
-             .hasSeenFolderHint:
+             .hasSeenFolderHint,
+             .hasRequestedNotificationPermission:
             return "false"
         case .totalDownloadsCount:
             return "0"
