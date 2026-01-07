@@ -115,12 +115,13 @@ class DownloadOptionsSheet: UIViewController {
         // If filtering reduced to 1 quality, download directly
         guard filteredQualities.count > 1 else {
             let quality = filteredQualities.first ?? qualities.first!
-            let selectedStream = DetectedStream(
+            var selectedStream = DetectedStream(
                 id: stream.id,
                 url: quality.url,
                 type: stream.type,
                 detectedAt: stream.detectedAt
             )
+            selectedStream.qualities = [quality]
             delegate?.downloadOptionsSheet(self, didSelectStream: selectedStream)
             return
         }
@@ -134,13 +135,14 @@ class DownloadOptionsSheet: UIViewController {
 
             alert.addAction(UIAlertAction(title: fullTitle, style: .default) { [weak self] _ in
                 guard let self = self else { return }
-                // Create new stream with selected quality URL
-                let selectedStream = DetectedStream(
+                // Create new stream with selected quality URL and quality info
+                var selectedStream = DetectedStream(
                     id: stream.id,
                     url: quality.url,
                     type: stream.type,
                     detectedAt: stream.detectedAt
                 )
+                selectedStream.qualities = [quality]
                 self.delegate?.downloadOptionsSheet(self, didSelectStream: selectedStream)
             })
         }
