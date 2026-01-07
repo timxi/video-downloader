@@ -228,6 +228,145 @@ enum TestFixtures {
         )
     }
 
+    // MARK: - DASH Manifests
+
+    /// Basic VOD MPD with two video qualities
+    static let dashVODManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011"
+             type="static"
+             mediaPresentationDuration="PT1H30M0S"
+             minBufferTime="PT2S">
+          <Period>
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <Representation id="1080p" bandwidth="5000000" width="1920" height="1080" codecs="avc1.640028">
+                <BaseURL>video/1080p/</BaseURL>
+                <SegmentTemplate initialization="init.mp4" media="seg-$Number$.m4s" startNumber="1" duration="4" timescale="1"/>
+              </Representation>
+              <Representation id="720p" bandwidth="2500000" width="1280" height="720" codecs="avc1.64001f">
+                <BaseURL>video/720p/</BaseURL>
+                <SegmentTemplate initialization="init.mp4" media="seg-$Number$.m4s" startNumber="1" duration="4" timescale="1"/>
+              </Representation>
+            </AdaptationSet>
+            <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="en">
+              <Representation id="audio-en" bandwidth="128000" codecs="mp4a.40.2">
+                <BaseURL>audio/en/</BaseURL>
+                <SegmentTemplate initialization="init.mp4" media="seg-$Number$.m4s" startNumber="1" duration="4" timescale="1"/>
+              </Representation>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// Live DASH manifest (dynamic type)
+    static let dashLiveManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011"
+             type="dynamic"
+             availabilityStartTime="2024-01-01T00:00:00Z"
+             minimumUpdatePeriod="PT5S"
+             minBufferTime="PT2S">
+          <Period start="PT0S">
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <Representation id="720p" bandwidth="2500000" width="1280" height="720">
+                <SegmentTemplate media="chunk-$Time$.m4s" timescale="90000"/>
+              </Representation>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// DRM-protected DASH manifest with Widevine
+    static let dashDRMManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011"
+             xmlns:cenc="urn:mpeg:cenc:2013"
+             type="static"
+             mediaPresentationDuration="PT30M0S">
+          <Period>
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <ContentProtection schemeIdUri="urn:mpeg:dash:mp4protection:2011" value="cenc"/>
+              <ContentProtection schemeIdUri="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed">
+              </ContentProtection>
+              <Representation id="1080p" bandwidth="5000000" width="1920" height="1080">
+                <SegmentTemplate initialization="init.mp4" media="seg-$Number$.m4s"/>
+              </Representation>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// DASH with subtitles
+    static let dashWithSubtitlesManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT1H0M0S">
+          <Period>
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <Representation id="720p" bandwidth="2500000" width="1280" height="720"/>
+            </AdaptationSet>
+            <AdaptationSet contentType="text" mimeType="application/ttml+xml" lang="en">
+              <Representation id="sub-en" bandwidth="1000">
+                <BaseURL>subtitles/en.ttml</BaseURL>
+              </Representation>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// DASH with SegmentList instead of SegmentTemplate
+    static let dashSegmentListManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT10M0S">
+          <Period>
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <Representation id="720p" bandwidth="2500000" width="1280" height="720">
+                <SegmentList duration="4">
+                  <Initialization sourceURL="init.mp4"/>
+                  <SegmentURL media="segment1.m4s"/>
+                  <SegmentURL media="segment2.m4s"/>
+                  <SegmentURL media="segment3.m4s"/>
+                </SegmentList>
+              </Representation>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// DASH with multiple audio tracks
+    static let dashMultiAudioManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT1H0M0S">
+          <Period>
+            <AdaptationSet contentType="video" mimeType="video/mp4">
+              <Representation id="1080p" bandwidth="5000000" width="1920" height="1080"/>
+            </AdaptationSet>
+            <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="en" label="English">
+              <Representation id="audio-en" bandwidth="128000" codecs="mp4a.40.2"/>
+            </AdaptationSet>
+            <AdaptationSet contentType="audio" mimeType="audio/mp4" lang="es" label="Spanish">
+              <Representation id="audio-es" bandwidth="128000" codecs="mp4a.40.2"/>
+            </AdaptationSet>
+          </Period>
+        </MPD>
+        """
+
+    /// Minimal DASH manifest for duration parsing tests
+    static let dashMinimalManifest = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static" mediaPresentationDuration="PT2H15M30.5S"/>
+        """
+
+    // MARK: - DASH Quality Factories
+
+    static func makeDASHQualities() -> [StreamQuality] {
+        [
+            makeStreamQuality(resolution: "1080p", bandwidth: 5_000_000, url: "https://example.com/video/1080p/init.mp4", codecs: "avc1.640028"),
+            makeStreamQuality(resolution: "720p", bandwidth: 2_500_000, url: "https://example.com/video/720p/init.mp4", codecs: "avc1.64001f"),
+            makeStreamQuality(resolution: "480p", bandwidth: 1_500_000, url: "https://example.com/video/480p/init.mp4", codecs: "avc1.64001e"),
+            makeStreamQuality(resolution: "360p", bandwidth: 800_000, url: "https://example.com/video/360p/init.mp4", codecs: "avc1.640015")
+        ]
+    }
+
     // MARK: - Folder Factories
 
     static func makeFolder(

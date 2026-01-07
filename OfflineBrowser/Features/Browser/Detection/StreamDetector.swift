@@ -8,6 +8,7 @@ final class StreamDetector: ObservableObject {
     @Published private(set) var detectedStreams: [DetectedStream] = []
 
     private let hlsParser = HLSParser()
+    private let dashParser = DASHParser()
     private var processingURLs: Set<String> = []
     private let logger = Logger(subsystem: "com.offlinebrowser.app", category: "StreamDetector")
 
@@ -33,13 +34,17 @@ final class StreamDetector: ObservableObject {
         // Avoid processing the same URL multiple times
         guard !processingURLs.contains(url) else { return }
 
-        var stream = DetectedStream(url: url, type: type)
+        let stream = DetectedStream(url: url, type: type)
 
-        // For HLS streams, fetch and parse the manifest for additional info
-        if type == .hls {
+        // For HLS and DASH streams, fetch and parse the manifest for additional info
+        switch type {
+        case .hls:
             processingURLs.insert(url)
             parseHLSManifest(url: url, stream: stream)
-        } else {
+        case .dash:
+            processingURLs.insert(url)
+            parseDASHManifest(url: url, stream: stream)
+        case .direct, .unknown:
             detectedStreams.append(stream)
         }
     }
@@ -118,6 +123,78 @@ final class StreamDetector: ObservableObject {
 
                 case .failure(let error):
                     self?.logger.error("Failed to parse HLS manifest: \(error.localizedDescription) - \(url)")
+                    // Don't add streams that failed to parse
+                }
+            }
+        }
+    }
+
+    // MARK: - DASH Parsing
+
+    private func parseDASHManifest(url: String, stream: DetectedStream) {
+        guard let manifestURL = URL(string: url) else {
+            logger.warning("Invalid DASH URL: \(url)")
+            processingURLs.remove(url)
+            return
+        }
+
+        dashParser.parse(url: manifestURL) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.processingURLs.remove(url)
+
+                switch result {
+                case .success(let parsedInfo):
+                    var updatedStream = stream
+                    updatedStream.qualities = parsedInfo.qualities
+                    updatedStream.isLive = parsedInfo.isLive
+                    updatedStream.isDRMProtected = parsedInfo.isDRMProtected
+                    updatedStream.hasSubtitles = parsedInfo.hasSubtitles
+                    updatedStream.duration = parsedInfo.totalDuration
+
+                    // Skip DRM-protected streams
+                    if parsedInfo.isDRMProtected {
+                        self?.logger.info("Skipping DRM-protected DASH stream: \(url)")
+                        return
+                    }
+
+                    // Skip live streams
+                    if parsedInfo.isLive {
+                        self?.logger.info("Skipping live DASH stream: \(url)")
+                        return
+                    }
+
+                    // Filter by duration - skip short streams (likely ads)
+                    guard let duration = parsedInfo.totalDuration else {
+                        self?.logger.warning("Skipping DASH stream with unknown duration: \(url)")
+                        return
+                    }
+
+                    let minDuration = self?.minimumDurationForMainContent ?? 60
+                    if duration < minDuration {
+                        self?.logger.info("Skipping short DASH stream (ad): \(url) - Duration: \(duration, format: .fixed(precision: 1))s < \(minDuration)s")
+                        return
+                    }
+
+                    // Check for existing stream with same duration (deduplicate quality variants)
+                    if let existingIndex = self?.findStreamWithSimilarDuration(duration) {
+                        // Merge as quality variant of existing stream
+                        self?.mergeAsQualityVariant(newStream: updatedStream, existingIndex: existingIndex)
+                        NSLog("[StreamDetector] MERGED DASH: Duration %.1fs matches existing stream at index %d", duration, existingIndex)
+                    } else {
+                        // Deduplicate qualities before adding
+                        updatedStream.qualities = self?.deduplicateQualities(updatedStream.qualities)
+
+                        // Add as new stream
+                        self?.detectedStreams.append(updatedStream)
+                        let existingDurations = self?.detectedStreams.compactMap { $0.duration }.map { String(format: "%.1f", $0) }.joined(separator: ", ") ?? ""
+                        NSLog("[StreamDetector] ADDED NEW DASH: Duration %.1fs - Existing durations: [%@]", duration, existingDurations)
+
+                        // Filter out short streams after adding new one
+                        self?.filterShortStreams()
+                    }
+
+                case .failure(let error):
+                    self?.logger.error("Failed to parse DASH manifest: \(String(describing: error)) - \(url)")
                     // Don't add streams that failed to parse
                 }
             }

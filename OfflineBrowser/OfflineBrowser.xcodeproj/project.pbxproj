@@ -32,6 +32,7 @@
 		414E2E27B36D834AA8B37ED5 /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C46621FB8FF3F33A095A312 /* ThemeManager.swift */; };
 		493614587CF854CE8391E847 /* CookieManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B08D4999EEB67DD7F2A1BCF /* CookieManager.swift */; };
 		4E985A527029B7C581221A00 /* MockHLSParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1572D246F38D00259F92DF /* MockHLSParser.swift */; };
+		51EBE1064231945DCFE872DB /* DASHParserProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E07489898AC7FEB833170B61 /* DASHParserProtocol.swift */; };
 		53A0DFE3F962F3E4FA332EB1 /* FileManagerProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DDDD3CE653E9CBF1595BEE /* FileManagerProtocol.swift */; };
 		561DB5CA0A6910D02EC5A7FA /* MockDownloadTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0EEFA4709C75F6D7D3A8808 /* MockDownloadTask.swift */; };
 		5C43060CCBD8ECB857DF3AD3 /* HintManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F954905DEEDB81F241204F2F /* HintManager.swift */; };
@@ -42,6 +43,7 @@
 		69FB4F233A8CAC411D4F4585 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DF0D4ABE5BA95245CD1CC55 /* SettingsView.swift */; };
 		6A89130E8972712EAF822402 /* MockURLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6288EF984605F1D1AD044783 /* MockURLSession.swift */; };
 		6C563873DDD9358D33D9802F /* MockFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB75EFBD2596788E35121331 /* MockFileManager.swift */; };
+		76726468C09D27D6D6B19E8E /* DASHParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65E38B9744C37BFDAA3114BD /* DASHParser.swift */; };
 		77D512053C9F0ABA98DF6CDD /* MockFileStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB7066F4FECBA6503C35E7E /* MockFileStorageManager.swift */; };
 		7826CD21F7F0ADBD22AE1022 /* MockNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FEEAF430474B0ADDD6691FB /* MockNotificationManager.swift */; };
 		78FC35DF9239CB1B5B458804 /* TestDatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85DE6C06D22C920F328BDD0C /* TestDatabaseManager.swift */; };
@@ -60,6 +62,7 @@
 		A295405CD21D2A518DDD10D8 /* FFmpegMuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98EA71D88BB5E8AADE43A13B /* FFmpegMuxer.swift */; };
 		A533198B3C01EDA1952FDA1C /* HLSParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACFF75F16164764767B485F /* HLSParserTests.swift */; };
 		A99FCAC22D654779535F07B2 /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A9F150D626535C3C5468B91 /* BrowserViewController.swift */; };
+		AEBC94B058CFF8F54685AF46 /* DASHParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC74169205300ECFFDA5A3E0 /* DASHParserTests.swift */; };
 		AEDAE09044283A0CB8196257 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2CDB5F3FD41A74E8B61516 /* DownloadManager.swift */; };
 		B2519CCF67337CB6AAF4E68F /* DownloadTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEF1A249B22211D9406D45B /* DownloadTask.swift */; };
 		B253E665FC836F8E072967A4 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1AA7D54E1887D8723AEAD85 /* SceneDelegate.swift */; };
@@ -77,6 +80,7 @@
 		E660FDD2CAC71AC971CE79C2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 94BEF45F9DE18CF7BC249F46 /* Assets.xcassets */; };
 		EF8F63DC18BD4BC57BDE1902 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 2CE5C4BE74831B243597F9E7 /* GRDB */; };
 		F2960660A37BEF7438D84B63 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D529A0CC38D8BAAF358ECE /* Video.swift */; };
+		F3DE1454167C4F93DEDEDC69 /* MockDASHParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57FE6863AFC5D73563587153 /* MockDASHParser.swift */; };
 		F729B589C2CFD2B467310CF4 /* TestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813143FF8600B31C20117E10 /* TestFixtures.swift */; };
 /* End PBXBuildFile section */
 
@@ -114,6 +118,7 @@
 		5117533227A1E00FD7B218F8 /* Folder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Folder.swift; sourceTree = "<group>"; };
 		5642785BF93C3E85AF65D3CB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		572C7A3CF9D51C13FF1043D7 /* PreferenceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferenceRepository.swift; sourceTree = "<group>"; };
+		57FE6863AFC5D73563587153 /* MockDASHParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDASHParser.swift; sourceTree = "<group>"; };
 		58080988716047787EC87CF6 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		58BC999DDC3988AF7F10517D /* FileStorageManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileStorageManagerTests.swift; sourceTree = "<group>"; };
 		59527E68D2AE553DD6AF1143 /* MockFFmpegMuxer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFFmpegMuxer.swift; sourceTree = "<group>"; };
@@ -123,6 +128,7 @@
 		5D5A2FA1E67C6CBDCCD22143 /* DownloadManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManagerTests.swift; sourceTree = "<group>"; };
 		6288EF984605F1D1AD044783 /* MockURLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSession.swift; sourceTree = "<group>"; };
 		659B7FB682CBBD04516A5B11 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
+		65E38B9744C37BFDAA3114BD /* DASHParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DASHParser.swift; sourceTree = "<group>"; };
 		6DE8D532E899A405A78EDDBF /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		7267C3009E9A9D61C3322A22 /* OfflineBrowser.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OfflineBrowser.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		74B7DF216E07D472EEA1831E /* OfflineBrowser.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OfflineBrowser.entitlements; sourceTree = "<group>"; };
@@ -156,8 +162,10 @@
 		C1AF40E21ED45E8FEE2FF898 /* FFmpegMuxerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegMuxerTests.swift; sourceTree = "<group>"; };
 		C210B98D550D7AFD393B4E1A /* HLSParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSParser.swift; sourceTree = "<group>"; };
 		C4E607D1FD19DBA58F83E7C1 /* MockRepositories.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockRepositories.swift; sourceTree = "<group>"; };
+		CC74169205300ECFFDA5A3E0 /* DASHParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DASHParserTests.swift; sourceTree = "<group>"; };
 		DDEF1A249B22211D9406D45B /* DownloadTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadTask.swift; sourceTree = "<group>"; };
 		DE2CDB5F3FD41A74E8B61516 /* DownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManager.swift; sourceTree = "<group>"; };
+		E07489898AC7FEB833170B61 /* DASHParserProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DASHParserProtocol.swift; sourceTree = "<group>"; };
 		E1AA7D54E1887D8723AEAD85 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		EBB7066F4FECBA6503C35E7E /* MockFileStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileStorageManager.swift; sourceTree = "<group>"; };
 		F598EF1A7C2249A07692C359 /* RetryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetryPolicy.swift; sourceTree = "<group>"; };
@@ -202,6 +210,7 @@
 		1DC3DAEC5E7AD75A83C252BC /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				CC74169205300ECFFDA5A3E0 /* DASHParserTests.swift */,
 				C1AF40E21ED45E8FEE2FF898 /* FFmpegMuxerTests.swift */,
 				58BC999DDC3988AF7F10517D /* FileStorageManagerTests.swift */,
 				8ACFF75F16164764767B485F /* HLSParserTests.swift */,
@@ -242,6 +251,7 @@
 		3C7AC643F78EE435F5B10BEF /* Protocols */ = {
 			isa = PBXGroup;
 			children = (
+				E07489898AC7FEB833170B61 /* DASHParserProtocol.swift */,
 				B26BF7BAAB3D5D60469FABDB /* FFmpegMuxerProtocol.swift */,
 				13DDDD3CE653E9CBF1595BEE /* FileManagerProtocol.swift */,
 				A21AFAD289C57E45A5350076 /* FileStorageManagerProtocol.swift */,
@@ -383,6 +393,7 @@
 		B76018AA85233867798A4CF5 /* Mocks */ = {
 			isa = PBXGroup;
 			children = (
+				57FE6863AFC5D73563587153 /* MockDASHParser.swift */,
 				C0EEFA4709C75F6D7D3A8808 /* MockDownloadTask.swift */,
 				3BB8B68B14505BC6AC7D6AF6 /* MockDownloadTaskDelegate.swift */,
 				59527E68D2AE553DD6AF1143 /* MockFFmpegMuxer.swift */,
@@ -459,6 +470,7 @@
 		CCD140EB0E7C4D08989B7E33 /* Detection */ = {
 			isa = PBXGroup;
 			children = (
+				65E38B9744C37BFDAA3114BD /* DASHParser.swift */,
 				B3A719BAF38028CE0E5EF076 /* DetectedStream.swift */,
 				C210B98D550D7AFD393B4E1A /* HLSParser.swift */,
 				11F0C5F41EE516D138504050 /* StreamDetector.swift */,
@@ -648,6 +660,8 @@
 				A99FCAC22D654779535F07B2 /* BrowserViewController.swift in Sources */,
 				33D2BBC1FAE61C7B1F33B796 /* ContentRuleListManager.swift in Sources */,
 				493614587CF854CE8391E847 /* CookieManager.swift in Sources */,
+				76726468C09D27D6D6B19E8E /* DASHParser.swift in Sources */,
+				51EBE1064231945DCFE872DB /* DASHParserProtocol.swift in Sources */,
 				A1D8986E23433E00EA933DBF /* DatabaseManager.swift in Sources */,
 				BE3B90DFDB6B2C8394B06047 /* DetectedStream.swift in Sources */,
 				3BF2F877526E76FA443296E8 /* Download.swift in Sources */,
@@ -691,6 +705,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AEBC94B058CFF8F54685AF46 /* DASHParserTests.swift in Sources */,
 				040E1048EFB78F6FD82E4DE9 /* DownloadComputedPropertiesTests.swift in Sources */,
 				1D190E7C20E282B6CC311674 /* DownloadManagerTests.swift in Sources */,
 				11B4B440558F90B2C5A74330 /* DownloadRepositoryTests.swift in Sources */,
@@ -699,6 +714,7 @@
 				248E801FF3383C32CA4B4FFE /* FolderFactoryTests.swift in Sources */,
 				246F322898B1DDD521EE748F /* FolderRepositoryTests.swift in Sources */,
 				A533198B3C01EDA1952FDA1C /* HLSParserTests.swift in Sources */,
+				F3DE1454167C4F93DEDEDC69 /* MockDASHParser.swift in Sources */,
 				561DB5CA0A6910D02EC5A7FA /* MockDownloadTask.swift in Sources */,
 				B416AA219E26C2169D565822 /* MockDownloadTaskDelegate.swift in Sources */,
 				DDB97654756C98BEF03C5D24 /* MockFFmpegMuxer.swift in Sources */,
