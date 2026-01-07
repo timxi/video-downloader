@@ -32,6 +32,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Initialize database
         DatabaseManager.shared.initialize()
 
+        // Cleanup old thumbnails
+        FileStorageManager.shared.cleanupOldThumbnails()
+
         // Register background tasks
         registerBackgroundTasks()
 
@@ -101,6 +104,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         } catch {
             print("Failed to configure audio session: \(error)")
         }
+    }
+
+    // MARK: - Memory Warning
+
+    func applicationDidReceiveMemoryWarning(_ application: UIApplication) {
+        // Clear URL cache
+        URLCache.shared.removeAllCachedResponses()
+
+        // Clear image cache
+        ImageCache.shared.clearCache()
+
+        print("[AppDelegate] Memory warning - cleared caches")
     }
 }
 

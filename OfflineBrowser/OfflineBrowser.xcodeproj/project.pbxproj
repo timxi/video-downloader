@@ -13,6 +13,7 @@
 		040E1048EFB78F6FD82E4DE9 /* DownloadComputedPropertiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21E4576BED593F0A443AEA6D /* DownloadComputedPropertiesTests.swift */; };
 		061D5A181207192E18643C75 /* FolderRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86656193ED2FB2B709654DDF /* FolderRepository.swift */; };
 		062063D2760D015BF08CF5F9 /* NetworkInterceptor.js in Resources */ = {isa = PBXBuildFile; fileRef = B188BDB30FEB14A88A50E777 /* NetworkInterceptor.js */; };
+		0B190EE13443B02057457259 /* Animation+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A846D30D249CFEE06E6F79B1 /* Animation+Extensions.swift */; };
 		0DA771222919245292E2721D /* VideoRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 484E2A16035901E449DCACFD /* VideoRepositoryTests.swift */; };
 		0FEC0E59A0CD21C4D8BE5BB8 /* FileStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB6000EEC9D1358AC833DCC /* FileStorageManager.swift */; };
 		11B4B440558F90B2C5A74330 /* DownloadRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05CF89742C9B7D172F7545B2 /* DownloadRepositoryTests.swift */; };
@@ -59,6 +60,7 @@
 		8FF47A603F28502D5555B6AB /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 9730FB1E657156023210C1C8 /* LaunchScreen.storyboard */; };
 		911B93D3FC9C23731A55B1F5 /* ThumbnailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CECC1A4FD0A78F768020FD9 /* ThumbnailService.swift */; };
 		98680A38E305C82E64FB819A /* DownloadOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E543953316226445AAE64F /* DownloadOptionsSheet.swift */; };
+		98A0EB0C5F63130551B3B4A3 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A37360FDEAB289F11C4E17 /* ImageCache.swift */; };
 		9943EC289943A02A12575163 /* RepositoryProtocols.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3832A354C55FD8DBB06FE68E /* RepositoryProtocols.swift */; };
 		99CFC271174D622E0D3247A0 /* FirebaseCrashlytics in Frameworks */ = {isa = PBXBuildFile; productRef = 322858EAF72ADFAD9EFD7C14 /* FirebaseCrashlytics */; };
 		9C3E802B51D175BCE808F321 /* MockRepositories.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4E607D1FD19DBA58F83E7C1 /* MockRepositories.swift */; };
@@ -112,6 +114,7 @@
 		11F0C5F41EE516D138504050 /* StreamDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamDetector.swift; sourceTree = "<group>"; };
 		13DDDD3CE653E9CBF1595BEE /* FileManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManagerProtocol.swift; sourceTree = "<group>"; };
 		16E743CE19401E69704AFC0B /* HLSParserProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HLSParserProtocol.swift; sourceTree = "<group>"; };
+		17A37360FDEAB289F11C4E17 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
 		1BADE96E62BDA3CFC502EE49 /* MainTabBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabBarController.swift; sourceTree = "<group>"; };
 		1F6367263DD427F5402590E2 /* Preference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preference.swift; sourceTree = "<group>"; };
 		21E4576BED593F0A443AEA6D /* DownloadComputedPropertiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadComputedPropertiesTests.swift; sourceTree = "<group>"; };
@@ -170,6 +173,7 @@
 		A0E543953316226445AAE64F /* DownloadOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadOptionsSheet.swift; sourceTree = "<group>"; };
 		A19AE7B024D99C1FD8D3BAC7 /* SleepTimerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerSheet.swift; sourceTree = "<group>"; };
 		A21AFAD289C57E45A5350076 /* FileStorageManagerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileStorageManagerProtocol.swift; sourceTree = "<group>"; };
+		A846D30D249CFEE06E6F79B1 /* Animation+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Animation+Extensions.swift"; sourceTree = "<group>"; };
 		B0E6CCB16A56CF5866870FCB /* FloatingPillView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPillView.swift; sourceTree = "<group>"; };
 		B145B1F2D176D44BF1958916 /* ThumbnailServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailServiceTests.swift; sourceTree = "<group>"; };
 		B188BDB30FEB14A88A50E777 /* NetworkInterceptor.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = NetworkInterceptor.js; sourceTree = "<group>"; };
@@ -371,6 +375,7 @@
 			isa = PBXGroup;
 			children = (
 				C8BAEC61A2130685BEC47630 /* CrashReporter.swift */,
+				17A37360FDEAB289F11C4E17 /* ImageCache.swift */,
 				6DE8D532E899A405A78EDDBF /* NetworkMonitor.swift */,
 				2682E98B4956F388E4C22FF2 /* NotificationManager.swift */,
 			);
@@ -573,6 +578,7 @@
 		E046430B75E5BD27796763C5 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				A846D30D249CFEE06E6F79B1 /* Animation+Extensions.swift */,
 			);
 			path = Extensions;
 			sourceTree = "<group>";
@@ -722,6 +728,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B190EE13443B02057457259 /* Animation+Extensions.swift in Sources */,
 				66918B9825D41E735295FED9 /* AppDelegate.swift in Sources */,
 				2924471FF87F4795431602BF /* BackgroundSessionManager.swift in Sources */,
 				87412FB9C09B23965ADD8BA1 /* BrowserNavigationBar.swift in Sources */,
@@ -752,6 +759,7 @@
 				BAB2A880E3999A6DF5B13821 /* HLSParser.swift in Sources */,
 				00C9094013FB3C1343E38913 /* HLSParserProtocol.swift in Sources */,
 				5C43060CCBD8ECB857DF3AD3 /* HintManager.swift in Sources */,
+				98A0EB0C5F63130551B3B4A3 /* ImageCache.swift in Sources */,
 				D74C8A3F09695EB4D177E5F9 /* InjectionManager.swift in Sources */,
 				7B1DF86C54D01A2245425DD9 /* LibraryView.swift in Sources */,
 				1B4D5E3AACAD46D76A43F131 /* MainTabBarController.swift in Sources */,

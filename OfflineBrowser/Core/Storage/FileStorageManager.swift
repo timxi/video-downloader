@@ -116,6 +116,31 @@ final class FileStorageManager {
         try? fileManager.createDirectory(at: videosDirectory, withIntermediateDirectories: true)
     }
 
+    func cleanupOldThumbnails(keepCount: Int = 100) {
+        guard let files = try? fileManager.contentsOfDirectory(
+            at: thumbnailsDirectory,
+            includingPropertiesForKeys: [.creationDateKey]
+        ) else { return }
+
+        let jpgFiles = files.filter { $0.pathExtension == "jpg" }
+        guard jpgFiles.count > keepCount else { return }
+
+        // Sort by creation date, oldest first
+        let sorted = jpgFiles.sorted { file1, file2 in
+            let date1 = (try? file1.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+            let date2 = (try? file2.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date.distantPast
+            return date1 < date2
+        }
+
+        // Remove oldest files
+        let toRemove = sorted.prefix(jpgFiles.count - keepCount)
+        for file in toRemove {
+            try? fileManager.removeItem(at: file)
+        }
+
+        print("[FileStorageManager] Cleaned up \(toRemove.count) old thumbnails")
+    }
+
     // MARK: - Storage Calculation
 
     func totalStorageUsed() -> Int64 {

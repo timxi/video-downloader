@@ -3,6 +3,7 @@ import SwiftUI
 struct GestureHintView: View {
     var onDismiss: () -> Void
     @State private var opacity: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -27,11 +28,19 @@ struct GestureHintView: View {
             }
             .padding(32)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Gesture controls. Swipe left or right to seek. Swipe up or down on left side for brightness. Swipe up or down on right side for volume. Double tap to play or pause.")
+            .accessibilityAddTraits(.isModal)
+            .accessibilityHint("Tap to dismiss")
         }
         .opacity(opacity)
         .onTapGesture { dismiss() }
         .onAppear {
-            withAnimation(.easeIn(duration: 0.3)) { opacity = 1 }
+            if reduceMotion {
+                opacity = 1
+            } else {
+                withAnimation(.easeIn(duration: 0.3)) { opacity = 1 }
+            }
             // Auto-dismiss after 5 seconds
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                 if opacity > 0 { dismiss() }
@@ -51,7 +60,12 @@ struct GestureHintView: View {
     }
 
     private func dismiss() {
-        withAnimation(.easeOut(duration: 0.2)) { opacity = 0 }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onDismiss() }
+        if reduceMotion {
+            opacity = 0
+            onDismiss()
+        } else {
+            withAnimation(.easeOut(duration: 0.2)) { opacity = 0 }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { onDismiss() }
+        }
     }
 }

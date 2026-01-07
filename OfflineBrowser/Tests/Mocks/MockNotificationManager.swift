@@ -8,6 +8,7 @@ final class MockNotificationManager: NotificationManagerProtocol {
     private(set) var startedTitles: [String] = []
     private(set) var completedTitles: [String] = []
     private(set) var failedTitles: [String] = []
+    private(set) var storageFullCount: Int = 0
 
     // MARK: - NotificationManagerProtocol
 
@@ -21,6 +22,10 @@ final class MockNotificationManager: NotificationManagerProtocol {
 
     func showDownloadFailed(title: String) {
         failedTitles.append(title)
+    }
+
+    func showStorageFull() {
+        storageFullCount += 1
     }
 
     // MARK: - Assertions
@@ -37,11 +42,16 @@ final class MockNotificationManager: NotificationManagerProtocol {
         !failedTitles.isEmpty
     }
 
+    var didNotifyStorageFull: Bool {
+        storageFullCount > 0
+    }
+
     // MARK: - Helpers
 
     func reset() {
         startedTitles.removeAll()
         completedTitles.removeAll()
         failedTitles.removeAll()
+        storageFullCount = 0
     }
 }

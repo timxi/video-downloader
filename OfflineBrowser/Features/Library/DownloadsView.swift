@@ -106,6 +106,34 @@ struct DownloadRow: View {
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+        .accessibilityHint(accessibilityHintText)
+    }
+
+    private var accessibilityDescription: String {
+        let title = download.pageTitle ?? "Video"
+        let status = statusText
+        let progress = download.status == .downloading ? ", \(download.formattedProgress)" : ""
+        return "\(title), \(status)\(progress)"
+    }
+
+    private var statusText: String {
+        switch download.status {
+        case .pending: return "queued"
+        case .downloading: return "downloading"
+        case .muxing: return "processing"
+        case .paused: return "paused"
+        case .completed: return "completed"
+        case .failed: return "failed"
+        }
+    }
+
+    private var accessibilityHintText: String {
+        switch download.status {
+        case .failed: return "Swipe right to retry, swipe left to cancel"
+        default: return "Swipe left to cancel"
+        }
     }
 
     private var statusBadge: some View {

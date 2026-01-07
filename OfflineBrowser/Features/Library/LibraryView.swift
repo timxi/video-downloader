@@ -6,12 +6,15 @@ struct LibraryView: View {
     @State private var showingCreateFolder = false
     @State private var selectedVideo: Video?
     @State private var showFolderHint = false
+    @State private var isLoading = true
 
     var body: some View {
         ZStack {
         NavigationView {
             Group {
-                if viewModel.videos.isEmpty && viewModel.folders.isEmpty {
+                if isLoading {
+                    loadingView
+                } else if viewModel.videos.isEmpty && viewModel.folders.isEmpty {
                     emptyStateView
                 } else {
                     contentView
@@ -44,8 +47,7 @@ struct LibraryView: View {
                 PlayerView(video: video)
             }
             .onAppear {
-                viewModel.loadData()
-                checkFolderHint()
+                loadData()
             }
         }
 
@@ -59,12 +61,35 @@ struct LibraryView: View {
         }
     }
 
+    private func loadData() {
+        isLoading = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            viewModel.loadData()
+            withAnimation(.easeOut(duration: 0.2)) {
+                isLoading = false
+            }
+            checkFolderHint()
+        }
+    }
+
     private func checkFolderHint() {
         let downloadCount = PreferenceRepository.shared.getInt(.totalDownloadsCount)
         if downloadCount >= 5 && !PreferenceRepository.shared.hasSeenFolderHint {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 showFolderHint = true
             }
+        }
+    }
+
+    // MARK: - Loading View
+
+    private var loadingView: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+            Text("Loading library...")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -187,6 +212,9 @@ struct FolderRow: View {
                 .font(.caption)
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(folder.name), \(videoCount) videos")
+        .accessibilityHint("Double tap to open folder")
     }
 }
 
@@ -212,6 +240,7 @@ struct VideoRow: View {
             }
             .frame(width: 120, height: 68)
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .accessibilityHidden(true)
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
@@ -239,6 +268,18 @@ struct VideoRow: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+        .accessibilityHint("Double tap to play")
+    }
+
+    private var accessibilityDescription: String {
+        var components = [video.title, video.formattedDuration, video.quality, video.formattedFileSize]
+        if video.playbackPosition > 0 {
+            let percent = Int((Double(video.playbackPosition) / Double(video.duration)) * 100)
+            components.append("\(percent)% watched")
+        }
+        return components.joined(separator: ", ")
     }
 }
 

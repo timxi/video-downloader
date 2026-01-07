@@ -22,6 +22,7 @@ protocol NotificationManagerProtocol {
     func showDownloadStarted(title: String)
     func showDownloadCompleted(title: String)
     func showDownloadFailed(title: String)
+    func showStorageFull()
 }
 
 extension NotificationManager: NotificationManagerProtocol {}
@@ -165,6 +166,13 @@ final class DownloadManager: ObservableObject {
             PreferenceRepository.shared.setBool(.hasRequestedNotificationPermission, value: true)
         }
 
+        // Check available storage before starting download
+        guard hasEnoughStorage() else {
+            NSLog("[DownloadManager] Insufficient storage for download")
+            notificationManager.showStorageFull()
+            return
+        }
+
         // Use page URL domain for folder organization, fallback to stream URL domain
         let folderDomain = pageURL?.host ?? url.host
 
@@ -208,6 +216,16 @@ final class DownloadManager: ObservableObject {
         } catch {
             print("Failed to load pending downloads: \(error)")
         }
+    }
+
+    private func hasEnoughStorage(minimumBytes: Int64 = 500_000_000) -> Bool {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+              let values = try? documentsURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let available = values.volumeAvailableCapacityForImportantUsage else {
+            return true // Assume OK if we can't check
+        }
+        // Require at least 500MB free (default) plus buffer
+        return available > minimumBytes + 100_000_000
     }
 
     private func processNextDownload() {

@@ -82,6 +82,21 @@ final class NotificationManager {
         UNUserNotificationCenter.current().add(request)
     }
 
+    func showStorageFull() {
+        let content = UNMutableNotificationContent()
+        content.title = "Storage Full"
+        content.body = "Not enough space to download. Free up storage and try again."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "storage_full",
+            content: content,
+            trigger: nil
+        )
+
+        UNUserNotificationCenter.current().add(request)
+    }
+
     // MARK: - Badge Management
 
     func updateBadge(count: Int) {

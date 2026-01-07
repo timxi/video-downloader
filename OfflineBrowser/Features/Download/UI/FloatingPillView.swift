@@ -96,6 +96,12 @@ class FloatingPillView: UIView {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         containerView.addGestureRecognizer(tapGesture)
         containerView.isUserInteractionEnabled = true
+
+        // Accessibility
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        accessibilityLabel = "Download options"
+        accessibilityHint = "Shows available video qualities"
     }
 
     // MARK: - Actions
@@ -123,6 +129,15 @@ class FloatingPillView: UIView {
         self.count = count
         countLabel.text = count > 99 ? "99+" : "\(count)"
         badgeView.isHidden = count == 0
+
+        // Update accessibility label
+        if count == 0 {
+            accessibilityLabel = "No videos detected"
+        } else if count == 1 {
+            accessibilityLabel = "1 video detected"
+        } else {
+            accessibilityLabel = "\(count) videos detected"
+        }
 
         // Bounce animation on count increase
         bounceAnimation()

@@ -40,18 +40,26 @@ class BrowserNavigationBar: UIView {
         backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
         backButton.addTarget(self, action: #selector(backTapped), for: .touchUpInside)
         backButton.isEnabled = false
+        backButton.accessibilityLabel = "Go back"
+        backButton.accessibilityHint = "Navigate to previous page"
 
         // Forward button
         forwardButton.setImage(UIImage(systemName: "chevron.right"), for: .normal)
         forwardButton.addTarget(self, action: #selector(forwardTapped), for: .touchUpInside)
         forwardButton.isEnabled = false
+        forwardButton.accessibilityLabel = "Go forward"
+        forwardButton.accessibilityHint = "Navigate to next page"
 
         // Refresh button
         refreshButton.setImage(UIImage(systemName: "arrow.clockwise"), for: .normal)
         refreshButton.addTarget(self, action: #selector(refreshTapped), for: .touchUpInside)
+        refreshButton.accessibilityLabel = "Refresh"
+        refreshButton.accessibilityHint = "Reload current page"
 
         // URL text field
         urlTextField.placeholder = "Search or enter URL"
+        urlTextField.accessibilityLabel = "URL address bar"
+        urlTextField.accessibilityHint = "Enter a website address"
         urlTextField.borderStyle = .roundedRect
         urlTextField.autocapitalizationType = .none
         urlTextField.autocorrectionType = .no
