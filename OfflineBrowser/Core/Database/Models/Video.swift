@@ -113,4 +113,10 @@ extension Video {
         let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         return documentsURL?.appendingPathComponent(thumbnailPath)
     }
+
+    var subtitleFileURL: URL? {
+        guard let subtitlePath = subtitlePath else { return nil }
+        let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+        return documentsURL?.appendingPathComponent(subtitlePath)
+    }
 }

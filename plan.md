@@ -532,7 +532,9 @@ Before full implementation, prototype these risky components:
 
 ---
 
-### Phase 9: Video Player ⚠️ (70% Complete)
+### Phase 9: Video Player ✅
+
+**Implementation Details:** See [phase9-video-player.md](./phase9-video-player.md)
 
 **Note:** Implementation uses SwiftUI `PlayerView` with `PlayerViewModel` instead of UIKit `PlayerViewController`.
 
@@ -552,7 +554,7 @@ Before full implementation, prototype these risky components:
 
 #### Step 9.3: Gesture Handler
 - [x] Implement gesture handling (integrated in PlayerViewModel)
-- [ ] Horizontal pan: seek (calculate offset from pan distance)
+- [x] Horizontal pan: seek (calculate offset from pan distance)
 - [x] Vertical pan left: brightness (UIScreen.main.brightness)
 - [x] Vertical pan right: volume (MPVolumeView slider)
 - [x] Double-tap: play/pause
@@ -561,7 +563,7 @@ Before full implementation, prototype these risky components:
 #### Step 9.4: Playback Position
 - [x] Save position to database on pause/exit
 - [x] Resume from saved position on play
-- [ ] Show "Continue from X:XX?" prompt if position > 10s
+- [x] Show "Continue from X:XX?" prompt if position > 10s
 
 #### Step 9.5: Playback Speed
 - [x] Implement `PlaybackSpeedPicker` (integrated in PlayerView menu)
@@ -569,10 +571,10 @@ Before full implementation, prototype these risky components:
 - [x] Apply via AVPlayer.rate
 
 #### Step 9.6: Picture-in-Picture
-- [ ] Implement `PiPManager`
-- [ ] Configure AVPictureInPictureController
-- [ ] Handle PiP start/stop
-- [ ] Maintain playback state during PiP
+- [x] Implement PiP via AVPictureInPictureController
+- [x] Configure AVPictureInPictureController
+- [x] Handle PiP start/stop via delegate
+- [x] Maintain playback state during PiP
 
 #### Step 9.7: Background Audio
 - [x] Configure AVAudioSession category: .playback
@@ -580,23 +582,23 @@ Before full implementation, prototype these risky components:
 - [x] Continue playback when app backgrounds
 
 #### Step 9.8: Sleep Timer
-- [ ] Implement `SleepTimerManager`
-- [ ] Options: 15min, 30min, 45min, 1hr, end of video
-- [ ] Timer pauses playback and shows optional notification
+- [x] Implement `SleepTimerManager`
+- [x] Options: 15min, 30min, 45min, 1hr, 2hr, end of video
+- [x] Timer pauses playback via callback
 
 #### Step 9.9: Subtitle Renderer
-- [ ] Implement `SubtitleRenderer`
-- [ ] Parse WebVTT file
-- [ ] Display captions synced to playback time
-- [ ] Toggle visibility
-- [ ] Position at bottom with background
+- [x] Implement `SubtitleParser` (WebVTT)
+- [x] Parse WebVTT file with timestamp parsing
+- [x] Display captions synced to playback time
+- [x] Toggle visibility via menu
+- [x] Position at bottom with background
 
 #### Step 9.10: Orientation Handling
-- [ ] Force landscape on fullscreen enter
-- [ ] Return to portrait on fullscreen exit
-- [ ] Use UIViewController orientation overrides
+- [x] Force landscape on player appear
+- [x] Return to portrait on player disappear
+- [x] Use windowScene.requestGeometryUpdate (iOS 16+) with UIDevice fallback
 
-**Checkpoint:** Full video playback with all features working ⚠️
+**Checkpoint:** Full video playback with all features working ✅
 
 ---
 

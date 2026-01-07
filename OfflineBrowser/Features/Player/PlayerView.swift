@@ -4,9 +4,24 @@ import AVKit
 struct PlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: PlayerViewModel
+    @StateObject private var sleepTimer = SleepTimerManager()
+    @State private var showSleepTimerSheet = false
 
     init(video: Video) {
         _viewModel = StateObject(wrappedValue: PlayerViewModel(video: video))
+    }
+
+    private func setOrientation(_ orientation: UIInterfaceOrientationMask) {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            return
+        }
+
+        if #available(iOS 16.0, *) {
+            windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: orientation))
+        } else {
+            let orientationValue: UIInterfaceOrientation = orientation == .landscape ? .landscapeRight : .portrait
+            UIDevice.current.setValue(orientationValue.rawValue, forKey: "orientation")
+        }
     }
 
     var body: some View {
@@ -37,7 +52,7 @@ struct PlayerView: View {
                     .tint(.white)
                 }
             } else {
-                VideoPlayerView(player: viewModel.player)
+                VideoPlayerView(player: viewModel.player, viewModel: viewModel)
                     .ignoresSafeArea()
                 .gesture(
                     DragGesture()
@@ -69,15 +84,53 @@ struct PlayerView: View {
                 if let adjustmentType = viewModel.adjustmentType {
                     adjustmentIndicator(type: adjustmentType, value: viewModel.adjustmentValue)
                 }
+
+                // Horizontal seek preview
+                if viewModel.isHorizontalSeeking {
+                    SeekPreviewView(
+                        seekOffset: viewModel.seekOffset,
+                        previewTime: viewModel.seekPreviewTime
+                    )
+                }
+
+                // Subtitle overlay
+                if let subtitle = viewModel.currentSubtitle {
+                    VStack {
+                        Spacer()
+                        SubtitleView(text: subtitle)
+                    }
+                }
             }
         }
         .onAppear {
+            setOrientation(.landscape)
             if !viewModel.hasError {
                 viewModel.play()
             }
+            sleepTimer.onTimerFired = { [weak viewModel] in
+                viewModel?.pause()
+            }
         }
         .onDisappear {
+            setOrientation(.portrait)
             viewModel.savePosition()
+            sleepTimer.cancel()
+        }
+        .sheet(isPresented: $showSleepTimerSheet) {
+            SleepTimerSheet(
+                sleepTimer: sleepTimer,
+                videoDuration: viewModel.player.currentItem?.duration.seconds
+            )
+        }
+        .alert("Resume Playback", isPresented: $viewModel.showResumePrompt) {
+            Button("Resume from \(viewModel.formattedResumeTime)") {
+                viewModel.resumeFromSavedPosition()
+            }
+            Button("Start Over", role: .cancel) {
+                viewModel.startFromBeginning()
+            }
+        } message: {
+            Text("Continue where you left off?")
         }
         .statusBarHidden(true)
     }
@@ -112,6 +165,22 @@ struct PlayerView: View {
                         viewModel.togglePiP()
                     } label: {
                         Label("Picture in Picture", systemImage: "pip")
+                    }
+                    Button {
+                        viewModel.subtitlesEnabled.toggle()
+                    } label: {
+                        Label(
+                            viewModel.subtitlesEnabled ? "Hide Subtitles" : "Show Subtitles",
+                            systemImage: viewModel.subtitlesEnabled ? "captions.bubble.fill" : "captions.bubble"
+                        )
+                    }
+                    Button {
+                        showSleepTimerSheet = true
+                    } label: {
+                        Label(
+                            sleepTimer.isActive ? "Sleep Timer (\(sleepTimer.formattedRemainingTime))" : "Sleep Timer",
+                            systemImage: sleepTimer.isActive ? "moon.fill" : "moon"
+                        )
                     }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -231,16 +300,74 @@ struct PlayerView: View {
 
 struct VideoPlayerView: UIViewControllerRepresentable {
     let player: AVPlayer
+    let viewModel: PlayerViewModel
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(viewModel: viewModel)
+    }
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = false
         controller.videoGravity = .resizeAspect
+        controller.allowsPictureInPicturePlayback = true
+        controller.delegate = context.coordinator
+        context.coordinator.playerViewController = controller
+        context.coordinator.setupPiP(player: player)
+
+        // Set coordinator reference on view model
+        DispatchQueue.main.async {
+            viewModel.pipCoordinator = context.coordinator
+        }
+
         return controller
     }
 
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {}
+
+    class Coordinator: NSObject, AVPlayerViewControllerDelegate, AVPictureInPictureControllerDelegate {
+        weak var viewModel: PlayerViewModel?
+        weak var playerViewController: AVPlayerViewController?
+        var pipController: AVPictureInPictureController?
+
+        init(viewModel: PlayerViewModel) {
+            self.viewModel = viewModel
+        }
+
+        func setupPiP(player: AVPlayer) {
+            guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+            let playerLayer = AVPlayerLayer(player: player)
+            pipController = AVPictureInPictureController(playerLayer: playerLayer)
+            pipController?.delegate = self
+        }
+
+        func startPiP() {
+            pipController?.startPictureInPicture()
+        }
+
+        func stopPiP() {
+            pipController?.stopPictureInPicture()
+        }
+
+        // MARK: - AVPictureInPictureControllerDelegate
+
+        func pictureInPictureControllerWillStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+            Task { @MainActor in
+                viewModel?.isPiPActive = true
+            }
+        }
+
+        func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+            Task { @MainActor in
+                viewModel?.isPiPActive = false
+            }
+        }
+
+        func pictureInPictureController(_ pictureInPictureController: AVPictureInPictureController, restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
+            completionHandler(true)
+        }
+    }
 }
 
 // MARK: - Enums
@@ -270,13 +397,32 @@ class PlayerViewModel: ObservableObject {
     @Published var adjustmentType: AdjustmentType?
     @Published var adjustmentValue: Double = 0
 
+    // Horizontal seek state
+    @Published var isHorizontalSeeking = false
+    @Published var seekOffset: TimeInterval = 0
+    @Published var seekPreviewTime: TimeInterval = 0
+
     @Published var hasError = false
     @Published var errorMessage = ""
+
+    // Resume prompt state
+    @Published var showResumePrompt = false
+    private var savedPlaybackPosition: Int = 0
+
+    // PiP state
+    @Published var isPiPActive = false
+    var pipCoordinator: VideoPlayerView.Coordinator?
+
+    // Subtitle state
+    @Published var currentSubtitle: String?
+    @Published var subtitlesEnabled = true
+    private var subtitleCues: [SubtitleCue] = []
 
     private var timeObserver: Any?
     private var controlsTimer: Timer?
     private var dragStartBrightness: CGFloat = 0
     private var dragStartVolume: Float = 0
+    private var dragStartTime: TimeInterval = 0
 
     var currentTimeString: String {
         formatTime(player.currentTime().seconds)
@@ -306,10 +452,17 @@ class PlayerViewModel: ObservableObject {
 
         player = AVPlayer(url: url)
 
-        // Resume from saved position
+        // Check for saved position
         if PreferenceRepository.shared.rememberPlaybackPosition && video.playbackPosition > 0 {
-            let time = CMTime(seconds: Double(video.playbackPosition), preferredTimescale: 1)
-            player.seek(to: time)
+            savedPlaybackPosition = video.playbackPosition
+            // Show prompt for positions > 10 seconds
+            if video.playbackPosition > 10 {
+                showResumePrompt = true
+            } else {
+                // Auto-seek for small positions
+                let time = CMTime(seconds: Double(video.playbackPosition), preferredTimescale: 1)
+                player.seek(to: time)
+            }
         }
 
         // Set default playback speed
@@ -318,6 +471,31 @@ class PlayerViewModel: ObservableObject {
 
         setupTimeObserver()
         startControlsTimer()
+        loadSubtitles()
+    }
+
+    private func loadSubtitles() {
+        guard let subtitleURL = video.subtitleFileURL else { return }
+        let parser = WebVTTParser()
+        do {
+            subtitleCues = try parser.parse(fileURL: subtitleURL)
+        } catch {
+            // Silently fail - subtitles are optional
+        }
+    }
+
+    private func updateSubtitle(for time: TimeInterval) {
+        guard subtitlesEnabled, !subtitleCues.isEmpty else {
+            currentSubtitle = nil
+            return
+        }
+
+        // Find cue that matches current time
+        let matchingCue = subtitleCues.first { cue in
+            time >= cue.startTime && time <= cue.endTime
+        }
+
+        currentSubtitle = matchingCue?.text
     }
 
     deinit {
@@ -368,7 +546,29 @@ class PlayerViewModel: ObservableObject {
     }
 
     func togglePiP() {
-        // PiP implementation would go here
+        guard AVPictureInPictureController.isPictureInPictureSupported() else { return }
+        if isPiPActive {
+            pipCoordinator?.stopPiP()
+        } else {
+            pipCoordinator?.startPiP()
+        }
+    }
+
+    // MARK: - Resume Playback
+
+    var formattedResumeTime: String {
+        formatTime(Double(savedPlaybackPosition))
+    }
+
+    func resumeFromSavedPosition() {
+        let time = CMTime(seconds: Double(savedPlaybackPosition), preferredTimescale: 1)
+        player.seek(to: time)
+        showResumePrompt = false
+    }
+
+    func startFromBeginning() {
+        player.seek(to: .zero)
+        showResumePrompt = false
     }
 
     // MARK: - Gestures
@@ -388,9 +588,35 @@ class PlayerViewModel: ObservableObject {
     func handleDrag(translation: CGSize, location: CGPoint) {
         let screenWidth = UIScreen.main.bounds.width
 
+        // Determine drag direction with threshold
+        let isHorizontal = abs(translation.width) > abs(translation.height) * 1.5
+
         // Horizontal drag - seek
-        if abs(translation.width) > abs(translation.height) {
-            // Implement horizontal seek if desired
+        if isHorizontal && abs(translation.width) > 20 {
+            if !isHorizontalSeeking {
+                // Start horizontal seeking
+                isHorizontalSeeking = true
+                dragStartTime = player.currentTime().seconds
+            }
+
+            // Calculate seek offset: 100px = 1 second
+            let offset = translation.width / 100.0
+            seekOffset = offset
+
+            // Calculate preview time
+            guard let duration = player.currentItem?.duration.seconds, duration > 0 else { return }
+            let previewTime = max(0, min(duration, dragStartTime + offset))
+            seekPreviewTime = previewTime
+            return
+        }
+
+        // If already in horizontal seeking mode, continue it
+        if isHorizontalSeeking {
+            let offset = translation.width / 100.0
+            seekOffset = offset
+            guard let duration = player.currentItem?.duration.seconds, duration > 0 else { return }
+            let previewTime = max(0, min(duration, dragStartTime + offset))
+            seekPreviewTime = previewTime
             return
         }
 
@@ -410,6 +636,18 @@ class PlayerViewModel: ObservableObject {
     }
 
     func endDrag() {
+        if isHorizontalSeeking {
+            // Apply the seek
+            let time = CMTime(seconds: seekPreviewTime, preferredTimescale: 1)
+            player.seek(to: time)
+
+            // Reset horizontal seek state
+            isHorizontalSeeking = false
+            seekOffset = 0
+            seekPreviewTime = 0
+            return
+        }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.adjustmentType = nil
         }
@@ -425,12 +663,14 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Private Methods
 
     private func setupTimeObserver() {
-        let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        let interval = CMTime(seconds: 0.25, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self = self, !self.isSeeking else { return }
+            let currentTime = time.seconds
             if let duration = self.player.currentItem?.duration.seconds, duration > 0 {
-                self.currentProgress = time.seconds / duration
+                self.currentProgress = currentTime / duration
             }
+            self.updateSubtitle(for: currentTime)
         }
     }
 
