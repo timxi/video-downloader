@@ -103,6 +103,14 @@ class BrowserViewController: UIViewController {
             }
             .store(in: &cancellables)
 
+        // Observe YouTube extraction state
+        streamDetector.$isExtractingYouTube
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isExtracting in
+                self?.floatingPill.setLoading(isExtracting)
+            }
+            .store(in: &cancellables)
+
         // Observe web view navigation state
         webView.publisher(for: \.canGoBack)
             .receive(on: DispatchQueue.main)
@@ -123,6 +131,11 @@ class BrowserViewController: UIViewController {
             .sink { [weak self] url in
                 self?.navigationBar.updateURL(url)
                 self?.currentPageURL = url
+
+                // Check for YouTube on URL change (handles SPA navigation)
+                if let url = url, let webView = self?.webView {
+                    self?.streamDetector.checkAndExtractYouTube(url: url, webView: webView)
+                }
             }
             .store(in: &cancellables)
 
@@ -265,8 +278,8 @@ extension BrowserViewController: DownloadOptionsSheetDelegate {
 // MARK: - StreamDetectionDelegate
 
 extension BrowserViewController: StreamDetectionDelegate {
-    func didDetectStream(url: String, type: StreamType) {
-        streamDetector.addStream(url: url, type: type)
+    func didDetectStream(url: String, type: StreamType, source: String?) {
+        streamDetector.addStream(url: url, type: type, source: source)
     }
 }
 
@@ -280,6 +293,11 @@ extension BrowserViewController: WKNavigationDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         // Extract metadata
         extractPageMetadata()
+
+        // Check for YouTube and extract if applicable
+        if let url = webView.url {
+            streamDetector.checkAndExtractYouTube(url: url, webView: webView)
+        }
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

@@ -1,14 +1,17 @@
 import Foundation
 import Combine
+import WebKit
 import os.log
 
 final class StreamDetector: ObservableObject {
     static let shared = StreamDetector()
 
     @Published private(set) var detectedStreams: [DetectedStream] = []
+    @Published private(set) var isExtractingYouTube: Bool = false
 
     private let hlsParser = HLSParser()
     private let dashParser = DASHParser()
+    private let youtubeExtractor = YouTubeExtractor()
     private var processingURLs: Set<String> = []
     private let logger = Logger(subsystem: "com.offlinebrowser.app", category: "StreamDetector")
 
@@ -27,12 +30,18 @@ final class StreamDetector: ObservableObject {
 
     // MARK: - Public Methods
 
-    func addStream(url: String, type: StreamType) {
+    func addStream(url: String, type: StreamType, source: String? = nil) {
         // Avoid duplicates
         guard !detectedStreams.contains(where: { $0.url == url }) else { return }
 
         // Avoid processing the same URL multiple times
         guard !processingURLs.contains(url) else { return }
+
+        // If YouTube HLS was intercepted from the player, cancel any pending Innertube extraction
+        if source == "youtube-intercept" {
+            logger.info("YouTube HLS intercepted from player, cancelling Innertube extraction")
+            isExtractingYouTube = false
+        }
 
         let stream = DetectedStream(url: url, type: type)
 
@@ -52,10 +61,78 @@ final class StreamDetector: ObservableObject {
     func clearStreams() {
         detectedStreams.removeAll()
         processingURLs.removeAll()
+        isExtractingYouTube = false
     }
 
     func removeStream(_ stream: DetectedStream) {
         detectedStreams.removeAll { $0.id == stream.id }
+    }
+
+    // MARK: - YouTube Extraction
+
+    /// Check if the URL is a YouTube video and extract streams if so
+    /// - Parameters:
+    ///   - url: The current page URL
+    ///   - webView: The WKWebView to get cookies from (for authenticated access)
+    /// - Returns: True if YouTube extraction was started
+    @discardableResult
+    func checkAndExtractYouTube(url: URL, webView: WKWebView) -> Bool {
+        guard youtubeExtractor.canExtract(url: url) else {
+            return false
+        }
+
+        logger.info("YouTube URL detected, starting extraction: \(url.absoluteString)")
+
+        // Avoid duplicate extractions
+        let urlString = url.absoluteString
+        guard !processingURLs.contains(urlString) else {
+            logger.info("Already processing YouTube URL: \(urlString)")
+            return true
+        }
+
+        processingURLs.insert(urlString)
+        isExtractingYouTube = true
+        logger.info("Starting YouTube extraction for: \(urlString)")
+
+        // Get cookies from the webView's data store
+        webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
+            // Filter to YouTube cookies only
+            let youtubeCookies = cookies.filter { cookie in
+                let domain = cookie.domain.lowercased()
+                return domain.contains("youtube.com") || domain.contains("google.com")
+            }
+
+            self?.logger.info("Starting YouTube extraction with \(youtubeCookies.count) cookies")
+
+            self?.youtubeExtractor.extract(url: url, cookies: youtubeCookies) { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.processingURLs.remove(urlString)
+                    self?.isExtractingYouTube = false
+
+                    switch result {
+                    case .success(let streams):
+                        self?.logger.info("YouTube extraction successful: \(streams.count) streams")
+                        for stream in streams {
+                            // Check if we already have this stream
+                            if !(self?.detectedStreams.contains(where: { $0.url == stream.url }) ?? false) {
+                                self?.detectedStreams.append(stream)
+                            }
+                        }
+
+                    case .failure(let error):
+                        self?.logger.warning("YouTube extraction failed: \(error.localizedDescription)")
+                        // Fall back to generic detection - the JavaScript injection may still detect HLS streams
+                    }
+                }
+            }
+        }
+
+        return true
+    }
+
+    /// Check if a URL is a YouTube video URL
+    func isYouTubeURL(_ url: URL) -> Bool {
+        return youtubeExtractor.canExtract(url: url)
     }
 
     // MARK: - HLS Parsing

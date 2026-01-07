@@ -14,8 +14,10 @@ class FloatingPillView: UIView {
     private let iconImageView = UIImageView()
     private let countLabel = UILabel()
     private let badgeView = UIView()
+    private let loadingIndicator = UIActivityIndicatorView(style: .medium)
 
     private var count: Int = 0
+    private var isLoading: Bool = false
 
     // MARK: - Initialization
 
@@ -51,6 +53,12 @@ class FloatingPillView: UIView {
         containerView.addSubview(iconImageView)
         iconImageView.translatesAutoresizingMaskIntoConstraints = false
 
+        // Loading indicator
+        loadingIndicator.color = .white
+        loadingIndicator.hidesWhenStopped = true
+        containerView.addSubview(loadingIndicator)
+        loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
+
         // Badge
         badgeView.backgroundColor = .systemRed
         badgeView.layer.cornerRadius = 10
@@ -77,6 +85,9 @@ class FloatingPillView: UIView {
             iconImageView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
             iconImageView.widthAnchor.constraint(equalToConstant: 28),
             iconImageView.heightAnchor.constraint(equalToConstant: 28),
+
+            loadingIndicator.centerXAnchor.constraint(equalTo: containerView.centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
 
             badgeView.topAnchor.constraint(equalTo: containerView.topAnchor, constant: -4),
             badgeView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: 4),
@@ -170,6 +181,40 @@ class FloatingPillView: UIView {
         }) { _ in
             UIView.animate(withDuration: 0.15) {
                 self.containerView.transform = .identity
+            }
+        }
+    }
+
+    func setLoading(_ loading: Bool) {
+        guard isLoading != loading else { return }
+        isLoading = loading
+
+        if loading {
+            // Show loading state
+            iconImageView.isHidden = true
+            loadingIndicator.startAnimating()
+            badgeView.isHidden = true
+
+            // Show the pill if hidden
+            if isHidden {
+                show()
+            }
+
+            // Update accessibility
+            accessibilityLabel = "Extracting video"
+        } else {
+            // Restore normal state
+            iconImageView.isHidden = false
+            loadingIndicator.stopAnimating()
+            badgeView.isHidden = count == 0
+
+            // Update accessibility
+            if count == 0 {
+                accessibilityLabel = "No videos detected"
+            } else if count == 1 {
+                accessibilityLabel = "1 video detected"
+            } else {
+                accessibilityLabel = "\(count) videos detected"
             }
         }
     }

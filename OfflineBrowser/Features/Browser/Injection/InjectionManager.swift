@@ -2,13 +2,15 @@ import Foundation
 import WebKit
 
 protocol StreamDetectionDelegate: AnyObject {
-    func didDetectStream(url: String, type: StreamType)
+    func didDetectStream(url: String, type: StreamType, source: String?)
 }
 
 final class InjectionManager: NSObject {
 
     weak var delegate: StreamDetectionDelegate?
     private let messageHandlerName = "streamDetector"
+
+    private let consoleLogHandlerName = "consoleLog"
 
     // MARK: - Configuration
 
@@ -17,6 +19,9 @@ final class InjectionManager: NSObject {
 
         // Add message handler
         contentController.add(self, name: messageHandlerName)
+
+        // Add console log handler for debugging
+        contentController.add(self, name: consoleLogHandlerName)
 
         // Inject the network interceptor script
         if let script = loadInterceptorScript() {
@@ -163,6 +168,14 @@ final class InjectionManager: NSObject {
 
 extension InjectionManager: WKScriptMessageHandler {
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        // Handle console log messages for debugging
+        if message.name == consoleLogHandlerName {
+            if let logMessage = message.body as? String {
+                print("[JS Console] \(logMessage)")
+            }
+            return
+        }
+
         guard message.name == messageHandlerName,
               let body = message.body as? [String: Any],
               let messageType = body["type"] as? String,
@@ -184,9 +197,12 @@ extension InjectionManager: WKScriptMessageHandler {
             streamType = .unknown
         }
 
-        print("[InjectionManager] Stream detected: \(streamType) - \(url)")
+        // Extract source (e.g., "youtube-intercept" for intercepted YouTube HLS)
+        let source = body["source"] as? String
+
+        print("[InjectionManager] Stream detected: \(streamType) - \(url) (source: \(source ?? "unknown"))")
         DispatchQueue.main.async { [weak self] in
-            self?.delegate?.didDetectStream(url: url, type: streamType)
+            self?.delegate?.didDetectStream(url: url, type: streamType, source: source)
         }
     }
 }

@@ -39,6 +39,7 @@ targets:
     resources:
       - path: Resources/Assets.xcassets
       - path: Resources/NetworkInterceptor.js
+      - path: Resources/youtube-extract.js
       - path: Resources/GoogleService-Info.plist
         optional: true
     dependencies:

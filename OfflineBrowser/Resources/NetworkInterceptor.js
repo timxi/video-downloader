@@ -1,6 +1,20 @@
 (function() {
     'use strict';
 
+    // Wrap console.log to forward to Swift for debugging
+    const originalConsoleLog = console.log;
+    console.log = function(...args) {
+        originalConsoleLog.apply(console, args);
+        try {
+            const message = args.map(arg =>
+                typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+            ).join(' ');
+            if (message.includes('[OfflineBrowser]')) {
+                window.webkit.messageHandlers.consoleLog.postMessage(message);
+            }
+        } catch (e) {}
+    };
+
     console.log('[OfflineBrowser] Stream interceptor initializing...');
 
     // Track detected URLs to avoid duplicates
@@ -8,6 +22,93 @@
 
     // Track MP4 URLs by domain to limit spam
     const mp4ByDomain = new Map();
+
+    // YouTube HLS capture state
+    let youtubeHLSCaptureActive = false;
+    let youtubeHLSCaptureTimeout = null;
+
+    // YouTube HLS detection patterns
+    const YOUTUBE_HLS_PATTERNS = [
+        /googlevideo\.com.*\.m3u8/i,
+        /youtube\.com\/api\/manifest\/hls/i,
+        /manifest\.googlevideo\.com/i,
+        /\.googlevideo\.com\/videoplayback.*itag=.*mime=/i,
+        /ytimg\.com.*\.m3u8/i
+    ];
+
+    // Check if current page is YouTube
+    function isYouTubePage() {
+        const host = window.location.hostname.toLowerCase();
+        return host.includes('youtube.com') || host.includes('youtu.be');
+    }
+
+    // Check if URL is a YouTube HLS manifest
+    function isYouTubeHLS(url) {
+        if (!url) return false;
+        return YOUTUBE_HLS_PATTERNS.some(pattern => pattern.test(url));
+    }
+
+    // Check if URL is a YouTube direct video (MP4)
+    function isYouTubeDirectVideo(url) {
+        if (!url) return false;
+        // YouTube videoplayback URLs with mp4 mime type
+        return url.includes('googlevideo.com/videoplayback') &&
+               (url.includes('mime=video%2Fmp4') || url.includes('mime=video/mp4'));
+    }
+
+    // Determine if YouTube URL is HLS or direct MP4
+    function getYouTubeStreamType(url) {
+        if (!url) return null;
+        if (url.includes('.m3u8')) return 'hls';
+        if (isYouTubeDirectVideo(url)) return 'direct';
+        if (isYouTubeHLS(url)) return 'hls';
+        return null;
+    }
+
+    // Start aggressive HLS capture for YouTube (called when video plays)
+    function startYouTubeHLSCapture() {
+        if (youtubeHLSCaptureActive) return;
+
+        youtubeHLSCaptureActive = true;
+        console.log('[OfflineBrowser] YouTube HLS capture started');
+
+        // Clear any existing timeout
+        if (youtubeHLSCaptureTimeout) {
+            clearTimeout(youtubeHLSCaptureTimeout);
+        }
+
+        // Stop capture after 10 seconds
+        youtubeHLSCaptureTimeout = setTimeout(function() {
+            youtubeHLSCaptureActive = false;
+            console.log('[OfflineBrowser] YouTube HLS capture ended');
+        }, 10000);
+    }
+
+    // Send YouTube stream to native with special handling
+    function sendYouTubeStreamToNative(url) {
+        if (!url || detectedURLs.has(url)) return;
+
+        // Determine the correct stream type
+        const streamType = getYouTubeStreamType(url) || 'hls';
+
+        detectedURLs.add(url);
+        console.log('[OfflineBrowser] YouTube ' + streamType + ' detected:', url.substring(0, 100) + '...');
+
+        try {
+            window.webkit.messageHandlers.streamDetector.postMessage({
+                type: 'streamDetected',
+                url: url,
+                streamType: streamType,
+                source: 'youtube-intercept',
+                timestamp: Date.now()
+            });
+        } catch (e) {
+            console.log('[OfflineBrowser] Failed to send YouTube stream to native:', e);
+        }
+    }
+
+    // Alias for backward compatibility
+    const sendYouTubeHLSToNative = sendYouTubeStreamToNative;
 
     // Expose a function to clear detected URLs (called from native on refresh/navigation)
     window.__offlineBrowserClearDetected = function() {
@@ -160,6 +261,13 @@
             normalizedUrl = url;
         }
 
+        // Check for YouTube streams first (special handling)
+        if (isYouTubeHLS(normalizedUrl) || isYouTubeDirectVideo(normalizedUrl)) {
+            console.log('[OfflineBrowser] YouTube URL intercepted');
+            sendYouTubeStreamToNative(normalizedUrl);
+            return;
+        }
+
         let type = null;
 
         // Check for HLS
@@ -197,6 +305,37 @@
     function extractStreamURLsFromText(text) {
         if (!text || typeof text !== 'string') return;
 
+        // YouTube-specific: Look for hlsManifestUrl in JSON responses
+        if (isYouTubePage() || text.includes('googlevideo.com')) {
+            // Match YouTube HLS manifest URL pattern
+            const ytHlsPattern = /https?:\/\/[^\s"'<>]*googlevideo\.com[^\s"'<>]*\.m3u8[^\s"'<>]*/gi;
+            const ytMatches = text.match(ytHlsPattern);
+            if (ytMatches) {
+                ytMatches.forEach(function(url) {
+                    // Clean up escaped URLs from JSON
+                    url = url.replace(/\\u0026/g, '&')
+                             .replace(/\\\//g, '/')
+                             .replace(/[\\'"]/g, '')
+                             .split('\\u')[0];
+                    if (isYouTubeHLS(url)) {
+                        sendYouTubeHLSToNative(url);
+                    }
+                });
+            }
+
+            // Also look for hlsManifestUrl key in JSON
+            const hlsManifestPattern = /"hlsManifestUrl"\s*:\s*"([^"]+)"/gi;
+            let match;
+            while ((match = hlsManifestPattern.exec(text)) !== null) {
+                let url = match[1]
+                    .replace(/\\u0026/g, '&')
+                    .replace(/\\\//g, '/');
+                if (url.includes('.m3u8')) {
+                    sendYouTubeHLSToNative(url);
+                }
+            }
+        }
+
         // Match m3u8 URLs
         const m3u8Pattern = /https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*/gi;
         const matches = text.match(m3u8Pattern);
@@ -204,7 +343,12 @@
             matches.forEach(function(url) {
                 // Clean up the URL
                 url = url.replace(/[\\'"]/g, '').split('\\u')[0];
-                sendToNative(url, 'hls');
+                // Check if YouTube HLS (already handled above, but double-check)
+                if (isYouTubeHLS(url)) {
+                    sendYouTubeHLSToNative(url);
+                } else {
+                    sendToNative(url, 'hls');
+                }
             });
         }
 
@@ -491,6 +635,75 @@
     // Initial hook attempts
     hookHLS();
     hookVideoJS();
+
+    // YouTube-specific playback detection
+    if (isYouTubePage()) {
+        console.log('[OfflineBrowser] YouTube page detected, enabling HLS interception');
+
+        // Listen for video play events (capture phase to catch before YouTube handles)
+        document.addEventListener('play', function(e) {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                console.log('[OfflineBrowser] YouTube video play event detected');
+                startYouTubeHLSCapture();
+
+                // Check the video element for HLS source
+                const video = e.target;
+                if (video.src && isYouTubeHLS(video.src)) {
+                    sendYouTubeHLSToNative(video.src);
+                }
+                if (video.currentSrc && isYouTubeHLS(video.currentSrc)) {
+                    sendYouTubeHLSToNative(video.currentSrc);
+                }
+            }
+        }, true);
+
+        // Also listen for loadeddata which fires when video is ready
+        document.addEventListener('loadeddata', function(e) {
+            if (e.target && e.target.tagName === 'VIDEO') {
+                const video = e.target;
+                console.log('[OfflineBrowser] YouTube video loadeddata:', video.src || video.currentSrc);
+                if (video.src && isYouTubeHLS(video.src)) {
+                    sendYouTubeHLSToNative(video.src);
+                }
+                if (video.currentSrc && isYouTubeHLS(video.currentSrc)) {
+                    sendYouTubeHLSToNative(video.currentSrc);
+                }
+            }
+        }, true);
+
+        // Monitor YouTube's video player for source changes
+        function monitorYouTubePlayer() {
+            const videos = document.querySelectorAll('video');
+            videos.forEach(function(video) {
+                // Check current source
+                if (video.src && isYouTubeHLS(video.src)) {
+                    sendYouTubeHLSToNative(video.src);
+                }
+                if (video.currentSrc && isYouTubeHLS(video.currentSrc)) {
+                    sendYouTubeHLSToNative(video.currentSrc);
+                }
+
+                // Check source elements
+                video.querySelectorAll('source').forEach(function(source) {
+                    if (source.src && isYouTubeHLS(source.src)) {
+                        sendYouTubeHLSToNative(source.src);
+                    }
+                });
+            });
+        }
+
+        // Run YouTube monitor periodically
+        setInterval(monitorYouTubePlayer, 1000);
+
+        // Also run on DOM changes (YouTube is a SPA)
+        const youtubeObserver = new MutationObserver(function() {
+            monitorYouTubePlayer();
+        });
+        youtubeObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
 
     console.log('[OfflineBrowser] Stream interceptor initialized successfully');
 })();
