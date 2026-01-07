@@ -2,24 +2,88 @@ import Foundation
 import WebKit
 import Combine
 
+// MARK: - DownloadTask Factory Protocol
+
+protocol DownloadTaskFactoryProtocol {
+    func makeDownloadTask(download: Download, cookies: [HTTPCookie]) -> DownloadTaskProtocol
+}
+
+// MARK: - Default DownloadTask Factory
+
+struct DefaultDownloadTaskFactory: DownloadTaskFactoryProtocol {
+    func makeDownloadTask(download: Download, cookies: [HTTPCookie]) -> DownloadTaskProtocol {
+        DownloadTask(download: download, cookies: cookies)
+    }
+}
+
+// MARK: - Notification Manager Protocol
+
+protocol NotificationManagerProtocol {
+    func showDownloadStarted(title: String)
+    func showDownloadCompleted(title: String)
+    func showDownloadFailed(title: String)
+}
+
+extension NotificationManager: NotificationManagerProtocol {}
+
+// MARK: - DownloadManager
+
 final class DownloadManager: ObservableObject {
     static let shared = DownloadManager()
 
     @Published private(set) var activeDownload: Download?
     @Published private(set) var downloadQueue: [Download] = []
 
-    private var currentTask: DownloadTask?
+    private var currentTask: DownloadTaskProtocol?
     private var cancellables = Set<AnyCancellable>()
 
     // Store cookies for each download by download ID
     private var downloadCookies: [UUID: [HTTPCookie]] = [:]
 
+    // Dependencies
+    private let downloadRepository: DownloadRepositoryProtocol
+    private let videoRepository: VideoRepositoryProtocol
+    private let folderRepository: FolderRepositoryProtocol
+    private let fileStorage: FileStorageManagerProtocol
+    private let taskFactory: DownloadTaskFactoryProtocol
+    private let notificationManager: NotificationManagerProtocol
+
     var hasPendingDownloads: Bool {
         !downloadQueue.isEmpty || activeDownload != nil
     }
 
-    private init() {
-        loadPendingDownloads()
+    // Singleton initializer (uses shared instances)
+    private convenience init() {
+        self.init(
+            downloadRepository: DownloadRepository.shared,
+            videoRepository: VideoRepository.shared,
+            folderRepository: FolderRepository.shared,
+            fileStorage: FileStorageManager.shared,
+            taskFactory: DefaultDownloadTaskFactory(),
+            notificationManager: NotificationManager.shared
+        )
+    }
+
+    // Injectable initializer for testing
+    init(
+        downloadRepository: DownloadRepositoryProtocol,
+        videoRepository: VideoRepositoryProtocol,
+        folderRepository: FolderRepositoryProtocol,
+        fileStorage: FileStorageManagerProtocol,
+        taskFactory: DownloadTaskFactoryProtocol,
+        notificationManager: NotificationManagerProtocol,
+        skipLoadPending: Bool = false
+    ) {
+        self.downloadRepository = downloadRepository
+        self.videoRepository = videoRepository
+        self.folderRepository = folderRepository
+        self.fileStorage = fileStorage
+        self.taskFactory = taskFactory
+        self.notificationManager = notificationManager
+
+        if !skipLoadPending {
+            loadPendingDownloads()
+        }
     }
 
     // MARK: - Public Methods
@@ -53,18 +117,19 @@ final class DownloadManager: ObservableObject {
         currentTask?.pause()
         if var download = activeDownload {
             download.status = .paused
-            try? DownloadRepository.shared.update(download)
+            try? downloadRepository.update(download)
         }
     }
 
     func resumePendingDownloads(completion: ((Bool) -> Void)?) {
+        loadPendingDownloads()
         processNextDownload()
         completion?(true)
     }
 
     func retryDownload(_ download: Download) {
         do {
-            try DownloadRepository.shared.resetForRetry(download)
+            try downloadRepository.resetForRetry(download)
             loadPendingDownloads()
             processNextDownload()
         } catch {
@@ -79,7 +144,7 @@ final class DownloadManager: ObservableObject {
             activeDownload = nil
         }
 
-        try? DownloadRepository.shared.delete(download)
+        try? downloadRepository.delete(download)
         downloadQueue.removeAll { $0.id == download.id }
 
         processNextDownload()
@@ -105,14 +170,14 @@ final class DownloadManager: ObservableObject {
         print("[DownloadManager] Creating download with \(cookies.count) cookies for page domain: \(folderDomain ?? "unknown")")
 
         do {
-            try DownloadRepository.shared.save(download)
+            try downloadRepository.save(download)
             downloadQueue.append(download)
 
             // Store cookies for this download
             downloadCookies[download.id] = cookies
 
             // Notify user
-            NotificationManager.shared.showDownloadStarted(title: pageTitle ?? "Video")
+            notificationManager.showDownloadStarted(title: pageTitle ?? "Video")
 
             // Start processing if no active download
             if activeDownload == nil {
@@ -125,8 +190,8 @@ final class DownloadManager: ObservableObject {
 
     private func loadPendingDownloads() {
         do {
-            downloadQueue = try DownloadRepository.shared.fetchPending()
-            if let active = try DownloadRepository.shared.fetchActive().first {
+            downloadQueue = try downloadRepository.fetchPending()
+            if let active = try downloadRepository.fetchActive().first {
                 activeDownload = active
             }
         } catch {
@@ -147,7 +212,7 @@ final class DownloadManager: ObservableObject {
 
         // Update status
         do {
-            try DownloadRepository.shared.updateStatus(next, to: .downloading)
+            try downloadRepository.updateStatus(next, to: .downloading)
         } catch {
             NSLog("[DownloadManager] Failed to update download status: %@", error.localizedDescription)
         }
@@ -157,7 +222,7 @@ final class DownloadManager: ObservableObject {
         NSLog("[DownloadManager] Starting download task with %d cookies", cookies.count)
 
         // Create download task with cookies
-        currentTask = DownloadTask(download: next, cookies: cookies)
+        currentTask = taskFactory.makeDownloadTask(download: next, cookies: cookies)
         currentTask?.delegate = self
         currentTask?.start()
     }
@@ -170,39 +235,39 @@ final class DownloadManager: ObservableObject {
 
         do {
             // Verify source file exists
-            guard FileStorageManager.shared.fileExists(at: videoURL) else {
+            guard fileStorage.fileExists(at: videoURL) else {
                 throw NSError(domain: "DownloadManager", code: 1, userInfo: [NSLocalizedDescriptionKey: "Downloaded file not found at \(videoURL.path)"])
             }
 
-            print("[DownloadManager] Source file exists, size: \(FileStorageManager.shared.fileSize(at: videoURL) ?? 0) bytes")
+            print("[DownloadManager] Source file exists, size: \(fileStorage.fileSize(at: videoURL) ?? 0) bytes")
 
             // Move video to permanent location
-            let videoDir = try FileStorageManager.shared.createVideoDirectory(for: videoID)
+            let videoDir = try fileStorage.createVideoDirectory(for: videoID)
             let fileExtension = videoURL.pathExtension.isEmpty ? "mp4" : videoURL.pathExtension
             var destinationURL: URL
             var relativePath: String
 
             // Single video file
             destinationURL = videoDir.appendingPathComponent("video.\(fileExtension)")
-            try FileStorageManager.shared.copyFile(from: videoURL, to: destinationURL)
+            try fileStorage.copyFile(from: videoURL, to: destinationURL)
             relativePath = "videos/\(videoID.uuidString)/video.\(fileExtension)"
             print("[DownloadManager] Copied to: \(destinationURL.path)")
 
             // Generate thumbnail
-            let thumbnailURL = FileStorageManager.shared.generateThumbnail(from: destinationURL)
+            let thumbnailURL = fileStorage.generateThumbnail(from: destinationURL)
 
             // Get video duration
             let duration = getVideoDuration(url: destinationURL)
 
             // Get file size
-            let fileSize = FileStorageManager.shared.fileSize(at: destinationURL) ?? 0
+            let fileSize = fileStorage.fileSize(at: destinationURL) ?? 0
 
             print("[DownloadManager] Duration: \(duration)s, Size: \(fileSize) bytes")
 
             // Create or get folder
             let folder: Folder?
             if let domain = download.sourceDomain {
-                folder = try FolderRepository.shared.fetchOrCreateAutoFolder(for: domain)
+                folder = try folderRepository.fetchOrCreateAutoFolder(for: domain)
                 print("[DownloadManager] Created/found folder for domain: \(domain)")
             } else {
                 folder = nil
@@ -222,24 +287,24 @@ final class DownloadManager: ObservableObject {
                 folderID: folder?.id
             )
 
-            try VideoRepository.shared.save(video)
+            try videoRepository.save(video)
             print("[DownloadManager] Video saved to database: \(video.id)")
 
             // Mark download as completed and remove
-            try DownloadRepository.shared.updateStatus(download, to: .completed)
-            try DownloadRepository.shared.delete(download)
+            try downloadRepository.updateStatus(download, to: .completed)
+            try downloadRepository.delete(download)
 
             // Clean up temp files
-            FileStorageManager.shared.deleteTempFiles(for: download)
+            fileStorage.deleteTempFiles(for: download)
 
             // Notify
-            NotificationManager.shared.showDownloadCompleted(title: video.title)
+            notificationManager.showDownloadCompleted(title: video.title)
 
             print("[DownloadManager] Download completed successfully!")
 
         } catch {
             print("[DownloadManager] ERROR: Failed to complete download: \(error)")
-            try? DownloadRepository.shared.markFailed(download, error: error.localizedDescription)
+            try? downloadRepository.markFailed(download, error: error.localizedDescription)
         }
 
         activeDownload = nil
@@ -284,25 +349,25 @@ final class DownloadManager: ObservableObject {
 // MARK: - DownloadTaskDelegate
 
 extension DownloadManager: DownloadTaskDelegate {
-    func downloadTask(_ task: DownloadTask, didUpdateProgress progress: Double, segmentsDownloaded: Int) {
+    func downloadTask(_ task: DownloadTaskProtocol, didUpdateProgress progress: Double, segmentsDownloaded: Int) {
         guard var download = activeDownload else { return }
         download.progress = progress
         download.segmentsDownloaded = segmentsDownloaded
         activeDownload = download
 
-        try? DownloadRepository.shared.updateProgress(download, progress: progress, segmentsDownloaded: segmentsDownloaded)
+        try? downloadRepository.updateProgress(download, progress: progress, segmentsDownloaded: segmentsDownloaded)
     }
 
-    func downloadTask(_ task: DownloadTask, didCompleteWithURL url: URL) {
+    func downloadTask(_ task: DownloadTaskProtocol, didCompleteWithURL url: URL) {
         guard let download = activeDownload else { return }
         completeDownload(download, videoURL: url)
     }
 
-    func downloadTask(_ task: DownloadTask, didFailWithError error: Error) {
+    func downloadTask(_ task: DownloadTaskProtocol, didFailWithError error: Error) {
         guard let download = activeDownload else { return }
 
-        try? DownloadRepository.shared.markFailed(download, error: error.localizedDescription)
-        NotificationManager.shared.showDownloadFailed(title: download.pageTitle ?? "Video")
+        try? downloadRepository.markFailed(download, error: error.localizedDescription)
+        notificationManager.showDownloadFailed(title: download.pageTitle ?? "Video")
 
         activeDownload = nil
         currentTask = nil

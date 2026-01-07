@@ -3,19 +3,30 @@ import os.log
 
 private let logger = Logger(subsystem: "com.offlinebrowser.app", category: "DownloadTask")
 
-protocol DownloadTaskDelegate: AnyObject {
-    func downloadTask(_ task: DownloadTask, didUpdateProgress progress: Double, segmentsDownloaded: Int)
-    func downloadTask(_ task: DownloadTask, didCompleteWithURL url: URL)
-    func downloadTask(_ task: DownloadTask, didFailWithError error: Error)
+// MARK: - Download Task Protocol
+
+protocol DownloadTaskProtocol: AnyObject {
+    var delegate: DownloadTaskDelegate? { get set }
+    var download: Download { get }
+    func start()
+    func pause()
+    func resume()
+    func cancel()
 }
 
-final class DownloadTask {
+protocol DownloadTaskDelegate: AnyObject {
+    func downloadTask(_ task: DownloadTaskProtocol, didUpdateProgress progress: Double, segmentsDownloaded: Int)
+    func downloadTask(_ task: DownloadTaskProtocol, didCompleteWithURL url: URL)
+    func downloadTask(_ task: DownloadTaskProtocol, didFailWithError error: Error)
+}
+
+final class DownloadTask: DownloadTaskProtocol {
 
     // MARK: - Properties
 
     weak var delegate: DownloadTaskDelegate?
 
-    private let download: Download
+    let download: Download
     private let cookies: [HTTPCookie]
     private let hlsParser = HLSParser()
     private var segments: [HLSSegment] = []

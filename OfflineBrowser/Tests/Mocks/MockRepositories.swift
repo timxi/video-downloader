@@ -151,7 +151,12 @@ final class MockDownloadRepository: DownloadRepositoryProtocol {
 
     // MARK: - In-Memory Storage
 
-    private var downloads: [UUID: Download] = [:]
+    var downloads: [Download] = []
+
+    // MARK: - Configurable Returns (for tests to set expected values)
+
+    var pendingDownloads: [Download] = []
+    var activeDownloads: [Download] = []
 
     // MARK: - Tracking
 
@@ -160,8 +165,8 @@ final class MockDownloadRepository: DownloadRepositoryProtocol {
     private(set) var deletedDownloads: [Download] = []
     private(set) var statusUpdates: [(download: Download, status: DownloadStatus)] = []
     private(set) var progressUpdates: [(download: Download, progress: Double, segmentsDownloaded: Int)] = []
-    private(set) var failedDownloads: [(download: Download, error: String)] = []
-    private(set) var retriedDownloads: [Download] = []
+    private(set) var failedDownloads: [Download] = []
+    private(set) var resetDownloads: [Download] = []
 
     // MARK: - Error Simulation
 
@@ -178,94 +183,108 @@ final class MockDownloadRepository: DownloadRepositoryProtocol {
             throw NSError(domain: "MockDownloadRepository", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to save download"])
         }
         savedDownloads.append(download)
-        downloads[download.id] = download
+        downloads.append(download)
         publishUpdate()
     }
 
     func update(_ download: Download) throws {
         updatedDownloads.append(download)
-        downloads[download.id] = download
+        if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+            downloads[index] = download
+        }
         publishUpdate()
     }
 
     func delete(_ download: Download) throws {
         deletedDownloads.append(download)
-        downloads.removeValue(forKey: download.id)
+        downloads.removeAll { $0.id == download.id }
         publishUpdate()
     }
 
     func deleteCompleted() throws {
-        let completedIDs = downloads.values.filter { $0.status == .completed }.map { $0.id }
-        for id in completedIDs {
-            downloads.removeValue(forKey: id)
-        }
+        downloads.removeAll { $0.status == .completed }
         publishUpdate()
     }
 
     // MARK: - Queries
 
     func fetchAll() throws -> [Download] {
-        Array(downloads.values).sorted { $0.createdAt > $1.createdAt }
+        downloads.sorted { $0.createdAt > $1.createdAt }
     }
 
     func fetch(id: UUID) throws -> Download? {
-        downloads[id]
+        downloads.first { $0.id == id }
     }
 
     func fetchPending() throws -> [Download] {
-        downloads.values.filter { $0.status == .pending }.sorted { $0.createdAt < $1.createdAt }
+        // Return configured pendingDownloads if set, otherwise filter from downloads
+        if !pendingDownloads.isEmpty {
+            return pendingDownloads
+        }
+        return downloads.filter { $0.status == .pending }.sorted { $0.createdAt < $1.createdAt }
     }
 
     func fetchActive() throws -> [Download] {
-        downloads.values.filter { $0.status == .downloading || $0.status == .muxing }.sorted { $0.createdAt < $1.createdAt }
+        // Return configured activeDownloads if set, otherwise filter from downloads
+        if !activeDownloads.isEmpty {
+            return activeDownloads
+        }
+        return downloads.filter { $0.status == .downloading || $0.status == .muxing }.sorted { $0.createdAt < $1.createdAt }
     }
 
     func fetchFailed() throws -> [Download] {
-        downloads.values.filter { $0.status == .failed }.sorted { $0.createdAt > $1.createdAt }
+        downloads.filter { $0.status == .failed }.sorted { $0.createdAt > $1.createdAt }
     }
 
     func fetchNextPending() throws -> Download? {
-        downloads.values.filter { $0.status == .pending }.min { $0.createdAt < $1.createdAt }
+        if !pendingDownloads.isEmpty {
+            return pendingDownloads.first
+        }
+        return downloads.filter { $0.status == .pending }.min { $0.createdAt < $1.createdAt }
     }
 
     // MARK: - Status Updates
 
     func updateStatus(_ download: Download, to status: DownloadStatus) throws {
         statusUpdates.append((download: download, status: status))
-        if var d = downloads[download.id] {
+        if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+            var d = downloads[index]
             d.status = status
-            downloads[download.id] = d
+            downloads[index] = d
         }
         publishUpdate()
     }
 
     func updateProgress(_ download: Download, progress: Double, segmentsDownloaded: Int) throws {
         progressUpdates.append((download: download, progress: progress, segmentsDownloaded: segmentsDownloaded))
-        if var d = downloads[download.id] {
+        if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+            var d = downloads[index]
             d.progress = progress
             d.segmentsDownloaded = segmentsDownloaded
-            downloads[download.id] = d
+            downloads[index] = d
         }
         publishUpdate()
     }
 
     func markFailed(_ download: Download, error: String) throws {
-        failedDownloads.append((download: download, error: error))
-        if var d = downloads[download.id] {
+        failedDownloads.append(download)
+        if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+            var d = downloads[index]
             d.status = .failed
             d.errorMessage = error
             d.retryCount += 1
-            downloads[download.id] = d
+            downloads[index] = d
         }
         publishUpdate()
     }
 
     func resetForRetry(_ download: Download) throws {
-        retriedDownloads.append(download)
-        if var d = downloads[download.id] {
+        resetDownloads.append(download)
+        if let index = downloads.firstIndex(where: { $0.id == download.id }) {
+            var d = downloads[index]
             d.status = .pending
             d.errorMessage = nil
-            downloads[download.id] = d
+            downloads[index] = d
         }
         publishUpdate()
     }
@@ -287,24 +306,26 @@ final class MockDownloadRepository: DownloadRepositoryProtocol {
     // MARK: - Helpers
 
     private func publishUpdate() {
-        downloadsSubject.send(Array(downloads.values))
+        downloadsSubject.send(downloads)
     }
 
     func reset() {
         downloads.removeAll()
+        pendingDownloads.removeAll()
+        activeDownloads.removeAll()
         savedDownloads.removeAll()
         updatedDownloads.removeAll()
         deletedDownloads.removeAll()
         statusUpdates.removeAll()
         progressUpdates.removeAll()
         failedDownloads.removeAll()
-        retriedDownloads.removeAll()
+        resetDownloads.removeAll()
         shouldThrowOnSave = false
         downloadsSubject.send([])
     }
 
     func addDownload(_ download: Download) {
-        downloads[download.id] = download
+        downloads.append(download)
         publishUpdate()
     }
 }
@@ -323,7 +344,7 @@ final class MockFolderRepository: FolderRepositoryProtocol {
     private(set) var updatedFolders: [Folder] = []
     private(set) var deletedFolders: [Folder] = []
     private(set) var renamedFolders: [(folder: Folder, newName: String)] = []
-    private(set) var autoFolderRequests: [String] = []
+    private(set) var autoFolderDomains: [String] = []
 
     // MARK: - Publishers
 
@@ -372,7 +393,7 @@ final class MockFolderRepository: FolderRepositoryProtocol {
     }
 
     func fetchOrCreateAutoFolder(for domain: String) throws -> Folder {
-        autoFolderRequests.append(domain)
+        autoFolderDomains.append(domain)
 
         // Check for existing auto folder with this name
         if let existing = folders.values.first(where: { $0.name == domain && $0.isAutoGenerated }) {
@@ -419,7 +440,7 @@ final class MockFolderRepository: FolderRepositoryProtocol {
         updatedFolders.removeAll()
         deletedFolders.removeAll()
         renamedFolders.removeAll()
-        autoFolderRequests.removeAll()
+        autoFolderDomains.removeAll()
         videoCounts.removeAll()
         foldersSubject.send([])
     }

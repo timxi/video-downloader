@@ -21,6 +21,10 @@ final class MockFileStorageManager: FileStorageManagerProtocol {
     var fileSizes: [URL: Int64] = [:]
     var mockSegments: [UUID: [URL]] = [:]
 
+    // Convenience properties for tests
+    var fileExistsResult: Bool = false
+    var fileSizeResult: Int64 = 0
+
     // MARK: - Error Simulation
 
     var shouldThrowOnCreateVideoDirectory = false
@@ -166,11 +170,19 @@ final class MockFileStorageManager: FileStorageManagerProtocol {
     }
 
     func fileExists(at url: URL) -> Bool {
-        existingFiles.contains(url)
+        // Use the convenience property if set, otherwise check the set
+        if fileExistsResult {
+            return true
+        }
+        return existingFiles.contains(url)
     }
 
     func fileSize(at url: URL) -> Int64? {
-        fileSizes[url]
+        // Use the convenience property if set, otherwise check the dictionary
+        if fileSizeResult > 0 {
+            return fileSizeResult
+        }
+        return fileSizes[url]
     }
 
     // MARK: - Segment Management

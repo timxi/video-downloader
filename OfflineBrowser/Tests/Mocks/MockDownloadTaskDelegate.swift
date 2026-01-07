@@ -17,17 +17,17 @@ final class MockDownloadTaskDelegate: DownloadTaskDelegate {
 
     // MARK: - DownloadTaskDelegate
 
-    func downloadTask(_ task: DownloadTask, didUpdateProgress progress: Double, segmentsDownloaded: Int) {
+    func downloadTask(_ task: DownloadTaskProtocol, didUpdateProgress progress: Double, segmentsDownloaded: Int) {
         progressUpdates.append((progress: progress, segmentsDownloaded: segmentsDownloaded))
         onProgressUpdate?(progress, segmentsDownloaded)
     }
 
-    func downloadTask(_ task: DownloadTask, didCompleteWithURL url: URL) {
+    func downloadTask(_ task: DownloadTaskProtocol, didCompleteWithURL url: URL) {
         completedURLs.append(url)
         onComplete?(url)
     }
 
-    func downloadTask(_ task: DownloadTask, didFailWithError error: Error) {
+    func downloadTask(_ task: DownloadTaskProtocol, didFailWithError error: Error) {
         errors.append(error)
         onFail?(error)
     }
