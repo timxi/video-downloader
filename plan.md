@@ -637,7 +637,9 @@ Before full implementation, prototype these risky components:
 
 ---
 
-### Phase 11: Theme & Onboarding ⚠️ (90% Complete)
+### Phase 11: Theme & Onboarding ✅
+
+**Implementation Details:** See [phase11-onboarding.md](./phase11-onboarding.md)
 
 #### Step 11.1: Theme Manager
 - [x] Implement `ThemeManager`
@@ -649,11 +651,11 @@ Before full implementation, prototype these risky components:
 - [x] Implement `HintManager` (tracks shown hints)
 - [x] Create `ContextualHintView` (tooltip UI)
 - [x] Hint 1: Download pill (first video detection)
-- [ ] Hint 2: Gesture controls (first video play)
-- [ ] Hint 3: Folder organization (first 5 downloads)
+- [x] Hint 2: Gesture controls (first video play) - GestureHintView
+- [x] Hint 3: Folder organization (after 5 downloads) - FolderHintView
 - [x] Dismiss on tap, don't show again
 
-**Checkpoint:** Hints appear at right moments, theme switching works ⚠️
+**Checkpoint:** Hints appear at right moments, theme switching works ✅
 
 ---
 
@@ -804,9 +806,9 @@ Phase 10-14 (Settings, Polish, Ship)
 | 6: FFmpeg | Medium | ✅ Complete |
 | 7: Metadata | Medium | ✅ Complete |
 | 8: Library | Medium | ✅ Complete |
-| 9: Player | High | ⚠️ 70% (missing PiP, Sleep, Subtitles) |
+| 9: Player | High | ✅ Complete |
 | 10: Settings | Low | ✅ Complete |
-| 11: Theme/Onboarding | Low | ⚠️ 90% |
+| 11: Theme/Onboarding | Low | ✅ Complete |
 | 12: Notifications | Low | ⚠️ 50% (missing Firebase) |
 | 13: Polish | Medium | ⚠️ 40% (missing accessibility) |
 | 14: Testing/Ship | Medium | ⚠️ Unit tests done |

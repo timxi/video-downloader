@@ -66,6 +66,7 @@
 		A295405CD21D2A518DDD10D8 /* FFmpegMuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98EA71D88BB5E8AADE43A13B /* FFmpegMuxer.swift */; };
 		A533198B3C01EDA1952FDA1C /* HLSParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACFF75F16164764767B485F /* HLSParserTests.swift */; };
 		A99FCAC22D654779535F07B2 /* BrowserViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A9F150D626535C3C5468B91 /* BrowserViewController.swift */; };
+		AB6BA253DCC5623A447AF1F2 /* GestureHintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAFA07196EF1AE4AB411F9A /* GestureHintView.swift */; };
 		AEBC94B058CFF8F54685AF46 /* DASHParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC74169205300ECFFDA5A3E0 /* DASHParserTests.swift */; };
 		AEDAE09044283A0CB8196257 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE2CDB5F3FD41A74E8B61516 /* DownloadManager.swift */; };
 		B2519CCF67337CB6AAF4E68F /* DownloadTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDEF1A249B22211D9406D45B /* DownloadTask.swift */; };
@@ -85,6 +86,7 @@
 		D74C8A3F09695EB4D177E5F9 /* InjectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C348D191EA7F7C1865ADCCF /* InjectionManager.swift */; };
 		DDB97654756C98BEF03C5D24 /* MockFFmpegMuxer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59527E68D2AE553DD6AF1143 /* MockFFmpegMuxer.swift */; };
 		E660FDD2CAC71AC971CE79C2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 94BEF45F9DE18CF7BC249F46 /* Assets.xcassets */; };
+		E850A982A90332F6D9D663F5 /* FolderHintView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 336A8F7BB43B6F29756B0C38 /* FolderHintView.swift */; };
 		EF8F63DC18BD4BC57BDE1902 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 2CE5C4BE74831B243597F9E7 /* GRDB */; };
 		F0B021FD763C0C823CE4BD8E /* SubtitleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9292B1BE10A12AC7D5D1E536 /* SubtitleView.swift */; };
 		F2960660A37BEF7438D84B63 /* Video.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D529A0CC38D8BAAF358ECE /* Video.swift */; };
@@ -117,6 +119,7 @@
 		26916D9723A871D65FCFC961 /* VideoComputedPropertiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoComputedPropertiesTests.swift; sourceTree = "<group>"; };
 		2BB6000EEC9D1358AC833DCC /* FileStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileStorageManager.swift; sourceTree = "<group>"; };
 		2DF0D4ABE5BA95245CD1CC55 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		336A8F7BB43B6F29756B0C38 /* FolderHintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderHintView.swift; sourceTree = "<group>"; };
 		3832A354C55FD8DBB06FE68E /* RepositoryProtocols.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepositoryProtocols.swift; sourceTree = "<group>"; };
 		3BB8B68B14505BC6AC7D6AF6 /* MockDownloadTaskDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDownloadTaskDelegate.swift; sourceTree = "<group>"; };
 		3CECC1A4FD0A78F768020FD9 /* ThumbnailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailService.swift; sourceTree = "<group>"; };
@@ -171,6 +174,7 @@
 		B188BDB30FEB14A88A50E777 /* NetworkInterceptor.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = NetworkInterceptor.js; sourceTree = "<group>"; };
 		B26BF7BAAB3D5D60469FABDB /* FFmpegMuxerProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegMuxerProtocol.swift; sourceTree = "<group>"; };
 		B3A719BAF38028CE0E5EF076 /* DetectedStream.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectedStream.swift; sourceTree = "<group>"; };
+		BAAFA07196EF1AE4AB411F9A /* GestureHintView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureHintView.swift; sourceTree = "<group>"; };
 		BB75EFBD2596788E35121331 /* MockFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFileManager.swift; sourceTree = "<group>"; };
 		BD9FD39194D2BF29B68CF173 /* BackgroundSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundSessionManager.swift; sourceTree = "<group>"; };
 		C0EEFA4709C75F6D7D3A8808 /* MockDownloadTask.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDownloadTask.swift; sourceTree = "<group>"; };
@@ -245,9 +249,18 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
+		1FE62A517C3960227BB9F6D3 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				336A8F7BB43B6F29756B0C38 /* FolderHintView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		2753E161E08684825F33D499 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				BAAFA07196EF1AE4AB411F9A /* GestureHintView.swift */,
 				5BF4E10FFD7C583E8A702658 /* SeekPreviewView.swift */,
 				A19AE7B024D99C1FD8D3BAC7 /* SleepTimerSheet.swift */,
 				9292B1BE10A12AC7D5D1E536 /* SubtitleView.swift */,
@@ -425,6 +438,7 @@
 			children = (
 				05BD8D7A36EF055FCF67628E /* DownloadsView.swift */,
 				58080988716047787EC87CF6 /* LibraryView.swift */,
+				1FE62A517C3960227BB9F6D3 /* Components */,
 				2EF243A534F42425F1519367 /* FolderManagement */,
 			);
 			path = Library;
@@ -728,7 +742,9 @@
 				384F7B4B61725B4E6465149F /* FileStorageManagerProtocol.swift in Sources */,
 				C170667B72DD37D0091F97E6 /* FloatingPillView.swift in Sources */,
 				1FCE28C73E0A56A94F02A2CF /* Folder.swift in Sources */,
+				E850A982A90332F6D9D663F5 /* FolderHintView.swift in Sources */,
 				061D5A181207192E18643C75 /* FolderRepository.swift in Sources */,
+				AB6BA253DCC5623A447AF1F2 /* GestureHintView.swift in Sources */,
 				BAB2A880E3999A6DF5B13821 /* HLSParser.swift in Sources */,
 				00C9094013FB3C1343E38913 /* HLSParserProtocol.swift in Sources */,
 				5C43060CCBD8ECB857DF3AD3 /* HintManager.swift in Sources */,

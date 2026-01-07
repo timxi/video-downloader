@@ -6,6 +6,7 @@ struct PlayerView: View {
     @StateObject private var viewModel: PlayerViewModel
     @StateObject private var sleepTimer = SleepTimerManager()
     @State private var showSleepTimerSheet = false
+    @State private var showGestureHint = false
 
     init(video: Video) {
         _viewModel = StateObject(wrappedValue: PlayerViewModel(video: video))
@@ -100,6 +101,14 @@ struct PlayerView: View {
                         SubtitleView(text: subtitle)
                     }
                 }
+
+                // Gesture hint overlay
+                if showGestureHint {
+                    GestureHintView(onDismiss: {
+                        showGestureHint = false
+                        PreferenceRepository.shared.hasSeenGestureHint = true
+                    })
+                }
             }
         }
         .onAppear {
@@ -109,6 +118,12 @@ struct PlayerView: View {
             }
             sleepTimer.onTimerFired = { [weak viewModel] in
                 viewModel?.pause()
+            }
+            // Show gesture hint on first play
+            if !PreferenceRepository.shared.hasSeenGestureHint {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    showGestureHint = true
+                }
             }
         }
         .onDisappear {

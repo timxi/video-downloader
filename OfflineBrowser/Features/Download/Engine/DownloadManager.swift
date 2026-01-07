@@ -319,6 +319,10 @@ final class DownloadManager: ObservableObject {
             try videoRepository.save(video)
             print("[DownloadManager] Video saved to database: \(video.id)")
 
+            // Track download count for onboarding hints
+            let count = PreferenceRepository.shared.getInt(.totalDownloadsCount)
+            PreferenceRepository.shared.setInt(.totalDownloadsCount, value: count + 1)
+
             // Mark download as completed and remove
             try downloadRepository.updateStatus(download, to: .completed)
             try downloadRepository.delete(download)

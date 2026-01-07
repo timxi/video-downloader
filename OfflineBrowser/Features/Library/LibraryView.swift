@@ -5,8 +5,10 @@ struct LibraryView: View {
     @State private var searchText = ""
     @State private var showingCreateFolder = false
     @State private var selectedVideo: Video?
+    @State private var showFolderHint = false
 
     var body: some View {
+        ZStack {
         NavigationView {
             Group {
                 if viewModel.videos.isEmpty && viewModel.folders.isEmpty {
@@ -43,6 +45,25 @@ struct LibraryView: View {
             }
             .onAppear {
                 viewModel.loadData()
+                checkFolderHint()
+            }
+        }
+
+        // Folder hint overlay
+        if showFolderHint {
+            FolderHintView(onDismiss: {
+                showFolderHint = false
+                PreferenceRepository.shared.hasSeenFolderHint = true
+            })
+        }
+        }
+    }
+
+    private func checkFolderHint() {
+        let downloadCount = PreferenceRepository.shared.getInt(.totalDownloadsCount)
+        if downloadCount >= 5 && !PreferenceRepository.shared.hasSeenFolderHint {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                showFolderHint = true
             }
         }
     }
