@@ -16,6 +16,7 @@ class BrowserViewController: UIViewController {
 
     private var currentPageTitle: String?
     private var currentPageURL: URL?
+    private var currentPageImageURL: String?
 
     // MARK: - Lifecycle
 
@@ -254,6 +255,7 @@ extension BrowserViewController: DownloadOptionsSheetDelegate {
             stream: stream,
             pageTitle: currentPageTitle,
             pageURL: currentPageURL,
+            thumbnailURL: currentPageImageURL,
             webView: webView
         )
         dismiss(animated: true)
@@ -298,6 +300,9 @@ extension BrowserViewController: WKNavigationDelegate {
             if let dict = result as? [String: Any] {
                 if let title = dict["title"] as? String {
                     self?.currentPageTitle = title
+                }
+                if let image = dict["image"] as? String {
+                    self?.currentPageImageURL = image
                 }
             }
         }

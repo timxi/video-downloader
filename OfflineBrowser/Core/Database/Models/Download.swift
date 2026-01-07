@@ -25,6 +25,7 @@ struct Download: Codable, Identifiable {
     var errorMessage: String?
     var quality: String?
     var encryptionKeyURL: String?
+    var thumbnailURL: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -43,6 +44,7 @@ struct Download: Codable, Identifiable {
         errorMessage: String? = nil,
         quality: String? = nil,
         encryptionKeyURL: String? = nil,
+        thumbnailURL: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -60,6 +62,7 @@ struct Download: Codable, Identifiable {
         self.errorMessage = errorMessage
         self.quality = quality
         self.encryptionKeyURL = encryptionKeyURL
+        self.thumbnailURL = thumbnailURL
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -85,6 +88,7 @@ extension Download: FetchableRecord, PersistableRecord {
         static let errorMessage = Column(CodingKeys.errorMessage)
         static let quality = Column(CodingKeys.quality)
         static let encryptionKeyURL = Column(CodingKeys.encryptionKeyURL)
+        static let thumbnailURL = Column(CodingKeys.thumbnailURL)
         static let createdAt = Column(CodingKeys.createdAt)
         static let updatedAt = Column(CodingKeys.updatedAt)
     }

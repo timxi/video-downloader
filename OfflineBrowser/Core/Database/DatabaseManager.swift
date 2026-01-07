@@ -110,6 +110,13 @@ final class DatabaseManager {
             try db.create(index: "downloads_status", on: "downloads", columns: ["status"])
         }
 
+        // Migration 2: Add thumbnailURL to downloads for og:image support
+        migrator.registerMigration("v2_thumbnailURL") { db in
+            try db.alter(table: "downloads") { t in
+                t.add(column: "thumbnailURL", .text)
+            }
+        }
+
         return migrator
     }
 }

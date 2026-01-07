@@ -47,6 +47,7 @@ final class DownloadManager: ObservableObject {
     private let fileStorage: FileStorageManagerProtocol
     private let taskFactory: DownloadTaskFactoryProtocol
     private let notificationManager: NotificationManagerProtocol
+    private let thumbnailService: ThumbnailServiceProtocol
 
     var hasPendingDownloads: Bool {
         !downloadQueue.isEmpty || activeDownload != nil
@@ -60,7 +61,8 @@ final class DownloadManager: ObservableObject {
             folderRepository: FolderRepository.shared,
             fileStorage: FileStorageManager.shared,
             taskFactory: DefaultDownloadTaskFactory(),
-            notificationManager: NotificationManager.shared
+            notificationManager: NotificationManager.shared,
+            thumbnailService: ThumbnailService.shared
         )
     }
 
@@ -72,6 +74,7 @@ final class DownloadManager: ObservableObject {
         fileStorage: FileStorageManagerProtocol,
         taskFactory: DownloadTaskFactoryProtocol,
         notificationManager: NotificationManagerProtocol,
+        thumbnailService: ThumbnailServiceProtocol,
         skipLoadPending: Bool = false
     ) {
         self.downloadRepository = downloadRepository
@@ -80,6 +83,7 @@ final class DownloadManager: ObservableObject {
         self.fileStorage = fileStorage
         self.taskFactory = taskFactory
         self.notificationManager = notificationManager
+        self.thumbnailService = thumbnailService
 
         if !skipLoadPending {
             loadPendingDownloads()
@@ -88,7 +92,7 @@ final class DownloadManager: ObservableObject {
 
     // MARK: - Public Methods
 
-    func startDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, webView: WKWebView) {
+    func startDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, thumbnailURL: String? = nil, webView: WKWebView) {
         NSLog("[DownloadManager] startDownload called for stream: %@", stream.url)
 
         guard URL(string: stream.url) != nil else {
@@ -109,7 +113,7 @@ final class DownloadManager: ObservableObject {
                 HTTPCookieStorage.shared.setCookie(cookie)
             }
 
-            self?.createAndQueueDownload(stream: stream, pageTitle: pageTitle, pageURL: pageURL, cookies: cookies)
+            self?.createAndQueueDownload(stream: stream, pageTitle: pageTitle, pageURL: pageURL, thumbnailURL: thumbnailURL, cookies: cookies)
         }
     }
 
@@ -152,7 +156,7 @@ final class DownloadManager: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func createAndQueueDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, cookies: [HTTPCookie]) {
+    private func createAndQueueDownload(stream: DetectedStream, pageTitle: String?, pageURL: URL?, thumbnailURL: String? = nil, cookies: [HTTPCookie]) {
         guard let url = URL(string: stream.url) else { return }
 
         // Use page URL domain for folder organization, fallback to stream URL domain
@@ -164,7 +168,8 @@ final class DownloadManager: ObservableObject {
             pageTitle: pageTitle,
             pageURL: pageURL?.absoluteString,
             sourceDomain: folderDomain,
-            quality: stream.qualities?.first?.resolution
+            quality: stream.qualities?.first?.resolution,
+            thumbnailURL: thumbnailURL
         )
 
         print("[DownloadManager] Creating download with \(cookies.count) cookies for page domain: \(folderDomain ?? "unknown")")
@@ -253,8 +258,32 @@ final class DownloadManager: ObservableObject {
             relativePath = "videos/\(videoID.uuidString)/video.\(fileExtension)"
             print("[DownloadManager] Copied to: \(destinationURL.path)")
 
-            // Generate thumbnail
-            let thumbnailURL = fileStorage.generateThumbnail(from: destinationURL)
+            // Generate thumbnail - try og:image first, fall back to video frame extraction
+            var thumbnailURL: URL?
+
+            if let ogImageURL = download.thumbnailURL {
+                print("[DownloadManager] Attempting to download og:image thumbnail from: \(ogImageURL)")
+                let semaphore = DispatchSemaphore(value: 0)
+
+                thumbnailService.downloadThumbnail(from: ogImageURL) { downloadedURL in
+                    thumbnailURL = downloadedURL
+                    semaphore.signal()
+                }
+
+                // Wait up to 10 seconds for thumbnail download
+                _ = semaphore.wait(timeout: .now() + 10)
+
+                if thumbnailURL != nil {
+                    print("[DownloadManager] Successfully downloaded og:image thumbnail")
+                } else {
+                    print("[DownloadManager] og:image download failed, falling back to video frame extraction")
+                }
+            }
+
+            // Fall back to video frame extraction if og:image wasn't available or failed
+            if thumbnailURL == nil {
+                thumbnailURL = fileStorage.generateThumbnail(from: destinationURL)
+            }
 
             // Get video duration
             let duration = getVideoDuration(url: destinationURL)

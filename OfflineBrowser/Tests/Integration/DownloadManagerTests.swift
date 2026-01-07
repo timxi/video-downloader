@@ -11,6 +11,7 @@ final class DownloadManagerTests: XCTestCase {
     var mockFileStorage: MockFileStorageManager!
     var mockTaskFactory: MockDownloadTaskFactory!
     var mockNotificationManager: MockNotificationManager!
+    var mockThumbnailService: MockThumbnailService!
     var sut: DownloadManager!
 
     override func setUp() {
@@ -23,6 +24,7 @@ final class DownloadManagerTests: XCTestCase {
         mockTaskFactory = MockDownloadTaskFactory()
         mockTaskFactory.autoComplete = false // Control timing manually
         mockNotificationManager = MockNotificationManager()
+        mockThumbnailService = MockThumbnailService()
 
         sut = DownloadManager(
             downloadRepository: mockDownloadRepo,
@@ -31,6 +33,7 @@ final class DownloadManagerTests: XCTestCase {
             fileStorage: mockFileStorage,
             taskFactory: mockTaskFactory,
             notificationManager: mockNotificationManager,
+            thumbnailService: mockThumbnailService,
             skipLoadPending: true
         )
     }
@@ -43,6 +46,7 @@ final class DownloadManagerTests: XCTestCase {
         mockFileStorage = nil
         mockTaskFactory = nil
         mockNotificationManager = nil
+        mockThumbnailService = nil
         dbPool = nil
         super.tearDown()
     }
