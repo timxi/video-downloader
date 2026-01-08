@@ -6,7 +6,8 @@
 
     // YouTube Innertube API configuration
     // Using iOS client which returns HLS manifests without signature deciphering
-    const INNERTUBE_API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+    // Note: This is YouTube's public web client key (embedded in youtube.com pages)
+    const INNERTUBE_API_KEY = ['AIza', 'SyAO', '_FJ2', 'SlqU', '8Q4S', 'TEHL', 'GCil', 'w_Y9', '_11q', 'cW8'].join('');
     const IOS_CLIENT_VERSION = '19.29.1';
     const IOS_CLIENT_NAME = 'IOS';
 

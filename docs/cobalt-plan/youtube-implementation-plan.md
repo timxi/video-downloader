@@ -234,7 +234,7 @@ class YouTubeExtractor: YouTubeExtractorProtocol {
 // Bundled with app - uses subset of youtubei.js functionality
 // Simplified implementation focused on HLS extraction
 
-const INNERTUBE_API_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const INNERTUBE_API_KEY = '<INNERTUBE_KEY>'; // Public YouTube web client key
 const INNERTUBE_CLIENT_VERSION = '2.20240101.00.00';
 
 async function extractYouTube(videoId, cookies) {
