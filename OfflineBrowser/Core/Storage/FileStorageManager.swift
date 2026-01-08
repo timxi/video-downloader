@@ -212,6 +212,12 @@ final class FileStorageManager {
         return size
     }
 
+    func removeFile(at url: URL) throws {
+        if fileManager.fileExists(atPath: url.path) {
+            try fileManager.removeItem(at: url)
+        }
+    }
+
     // MARK: - Segment Management
 
     func listSegments(for downloadID: UUID) -> [URL] {

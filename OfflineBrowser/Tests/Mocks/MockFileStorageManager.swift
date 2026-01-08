@@ -185,6 +185,14 @@ final class MockFileStorageManager: FileStorageManagerProtocol {
         return fileSizes[url]
     }
 
+    private(set) var removedFiles: [URL] = []
+
+    func removeFile(at url: URL) throws {
+        removedFiles.append(url)
+        existingFiles.remove(url)
+        fileSizes.removeValue(forKey: url)
+    }
+
     // MARK: - Segment Management
 
     func listSegments(for downloadID: UUID) -> [URL] {
@@ -212,6 +220,7 @@ final class MockFileStorageManager: FileStorageManagerProtocol {
         movedFiles.removeAll()
         copiedFiles.removeAll()
         copiedDirectories.removeAll()
+        removedFiles.removeAll()
         existingFiles.removeAll()
         fileSizes.removeAll()
         mockSegments.removeAll()

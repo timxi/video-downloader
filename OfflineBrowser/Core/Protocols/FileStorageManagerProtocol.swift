@@ -39,6 +39,7 @@ protocol FileStorageManagerProtocol {
     func copyDirectory(from source: URL, to destination: URL) throws
     func fileExists(at url: URL) -> Bool
     func fileSize(at url: URL) -> Int64?
+    func removeFile(at url: URL) throws
 
     // MARK: - Segment Management
     func listSegments(for downloadID: UUID) -> [URL]

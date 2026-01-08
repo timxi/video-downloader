@@ -5,11 +5,31 @@
     'use strict';
 
     // YouTube Innertube API configuration
-    // Using iOS client which returns HLS manifests without signature deciphering
+    // Using iOS client which returns HLS manifests with pre-signed URLs (no signature deciphering needed)
     // Note: This is YouTube's public web client key (embedded in youtube.com pages)
     const INNERTUBE_API_KEY = ['AIza', 'SyAO', '_FJ2', 'SlqU', '8Q4S', 'TEHL', 'GCil', 'w_Y9', '_11q', 'cW8'].join('');
-    const IOS_CLIENT_VERSION = '19.29.1';
+
+    // Updated iOS client parameters (January 2025)
+    // Based on yt-dlp: https://github.com/yt-dlp/yt-dlp/commit/de82acf
+    const IOS_CLIENT_VERSION = '20.03.02';
     const IOS_CLIENT_NAME = 'IOS';
+    const IOS_DEVICE_MODEL = 'iPhone16,2';
+    const IOS_OS_VERSION = '18.2.1.22C161';
+    const IOS_USER_AGENT = 'com.google.ios.youtube/' + IOS_CLIENT_VERSION + ' (' + IOS_DEVICE_MODEL + '; U; CPU iOS 18_2_1 like Mac OS X;)';
+
+    // Generate random visitor data
+    function generateVisitorData() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        let result = 'Cgt';
+        for (let i = 0; i < 11; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        result += 'GiJDZ';
+        for (let i = 0; i < 16; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
 
     /**
      * Build cookie header string from cookie array
@@ -35,8 +55,11 @@
             // Build cookie header for authenticated requests
             const cookieHeader = buildCookieHeader(cookies);
 
+            // Generate visitor data for this request
+            const visitorData = generateVisitorData();
+
             // Build the request body for iOS client
-            // iOS client returns HLS manifests without needing signature deciphering
+            // iOS client returns HLS manifests with pre-signed URLs (no signature deciphering needed)
             const requestBody = {
                 videoId: videoId,
                 context: {
@@ -44,16 +67,23 @@
                         clientName: IOS_CLIENT_NAME,
                         clientVersion: IOS_CLIENT_VERSION,
                         deviceMake: 'Apple',
-                        deviceModel: 'iPhone16,2',
+                        deviceModel: IOS_DEVICE_MODEL,
+                        platform: 'MOBILE',
                         osName: 'iOS',
-                        osVersion: '17.5.1',
-                        userAgent: 'com.google.ios.youtube/' + IOS_CLIENT_VERSION + ' (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)',
+                        osVersion: IOS_OS_VERSION,
+                        userAgent: IOS_USER_AGENT,
                         hl: 'en',
                         gl: 'US',
-                        utcOffsetMinutes: 0
+                        visitorData: visitorData,
+                        timeZone: 'America/New_York',
+                        utcOffsetMinutes: -300
                     },
                     user: {
                         lockedSafetyMode: false
+                    },
+                    request: {
+                        useSsl: true,
+                        internalExperimentFlags: []
                     }
                 },
                 contentCheckOk: true,
@@ -71,8 +101,10 @@
                 'Content-Type': 'application/json',
                 'X-Youtube-Client-Name': '5', // iOS = 5
                 'X-Youtube-Client-Version': IOS_CLIENT_VERSION,
+                'X-Goog-Visitor-Id': visitorData,
                 'Origin': 'https://www.youtube.com',
-                'User-Agent': 'com.google.ios.youtube/' + IOS_CLIENT_VERSION + ' (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X)'
+                'Referer': 'https://www.youtube.com/',
+                'User-Agent': IOS_USER_AGENT
             };
 
             // Add cookies if available (for authenticated requests)

@@ -26,6 +26,7 @@
     // YouTube HLS capture state
     let youtubeHLSCaptureActive = false;
     let youtubeHLSCaptureTimeout = null;
+    let lastExtractedYouTubeVideoId = null;
 
     // YouTube HLS detection patterns
     const YOUTUBE_HLS_PATTERNS = [
@@ -110,10 +111,260 @@
     // Alias for backward compatibility
     const sendYouTubeHLSToNative = sendYouTubeStreamToNative;
 
+    // Extract ytInitialPlayerResponse from YouTube page for higher quality streams
+    function extractYtInitialPlayerResponse() {
+        try {
+            // Method 1: Check if ytInitialPlayerResponse is defined as a global variable
+            if (typeof ytInitialPlayerResponse !== 'undefined' && ytInitialPlayerResponse) {
+                return ytInitialPlayerResponse;
+            }
+
+            // Method 2: Extract from script tags in the page
+            const scripts = document.querySelectorAll('script');
+            for (const script of scripts) {
+                const content = script.textContent || '';
+
+                // Look for ytInitialPlayerResponse = {...}
+                const patterns = [
+                    /ytInitialPlayerResponse\s*=\s*(\{[\s\S]*?\});/,
+                    /var\s+ytInitialPlayerResponse\s*=\s*(\{[\s\S]*?\});/
+                ];
+
+                for (const pattern of patterns) {
+                    const match = content.match(pattern);
+                    if (match && match[1]) {
+                        try {
+                            return JSON.parse(match[1]);
+                        } catch (parseError) {
+                            // Try to extract just the streaming data
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            return null;
+        } catch (e) {
+            console.log('[OfflineBrowser] Error extracting ytInitialPlayerResponse:', e.message);
+            return null;
+        }
+    }
+
+    // Get video ID from current YouTube page URL
+    function getCurrentYouTubeVideoId() {
+        const url = window.location.href;
+
+        // Pattern: youtube.com/watch?v=VIDEO_ID
+        const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
+        if (watchMatch) return watchMatch[1];
+
+        // Pattern: youtu.be/VIDEO_ID
+        const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+        if (shortMatch) return shortMatch[1];
+
+        // Pattern: youtube.com/shorts/VIDEO_ID
+        const shortsMatch = url.match(/\/shorts\/([a-zA-Z0-9_-]{11})/);
+        if (shortsMatch) return shortsMatch[1];
+
+        // Pattern: youtube.com/embed/VIDEO_ID
+        const embedMatch = url.match(/\/embed\/([a-zA-Z0-9_-]{11})/);
+        if (embedMatch) return embedMatch[1];
+
+        return null;
+    }
+
+    // Try to extract HLS manifest from ytInitialPlayerResponse for higher quality
+    function tryExtractHigherQualityStream() {
+        if (!isYouTubePage()) return;
+
+        const videoId = getCurrentYouTubeVideoId();
+        if (!videoId) return;
+
+        // Don't re-extract for the same video
+        if (lastExtractedYouTubeVideoId === videoId) return;
+
+        console.log('[OfflineBrowser] Attempting to extract higher quality for video:', videoId);
+
+        const playerResponse = extractYtInitialPlayerResponse();
+        if (!playerResponse) {
+            console.log('[OfflineBrowser] Could not extract ytInitialPlayerResponse - will try fetching via API');
+            // Try fetching player response via API instead
+            tryFetchPlayerResponse(videoId);
+            return;
+        }
+
+        processPlayerResponse(playerResponse, videoId);
+    }
+
+    // Process player response to extract streams
+    function processPlayerResponse(playerResponse, videoId) {
+        // Check playability status
+        const playabilityStatus = playerResponse.playabilityStatus;
+        if (!playabilityStatus || playabilityStatus.status !== 'OK') {
+            const reason = playabilityStatus?.reason || 'Unknown';
+            console.log('[OfflineBrowser] Video not playable:', reason);
+            return;
+        }
+
+        const streamingData = playerResponse.streamingData;
+        if (!streamingData) {
+            console.log('[OfflineBrowser] No streaming data in player response');
+            return;
+        }
+
+        console.log('[OfflineBrowser] Streaming data keys:', Object.keys(streamingData).join(', '));
+
+        // Look for HLS manifest URL - this has multiple qualities!
+        const hlsManifestUrl = streamingData.hlsManifestUrl;
+        if (hlsManifestUrl) {
+            lastExtractedYouTubeVideoId = videoId;
+            console.log('[OfflineBrowser] Found HLS manifest with multiple qualities:', hlsManifestUrl.substring(0, 80) + '...');
+            sendYouTubeHLSToNative(hlsManifestUrl);
+            return;
+        }
+
+        // Check for formats with higher quality
+        const formats = streamingData.formats || [];
+        console.log('[OfflineBrowser] Found', formats.length, 'formats in streamingData');
+
+        // Find the highest quality format with a direct URL
+        let bestFormat = null;
+        let bestQuality = 0;
+
+        for (const format of formats) {
+            if (format.url && format.mimeType?.includes('video')) {
+                const quality = format.qualityLabel || format.quality || 'unknown';
+                const height = format.height || 0;
+                console.log('[OfflineBrowser] Format:', quality, 'height:', height, 'itag:', format.itag);
+
+                if (height > bestQuality) {
+                    bestQuality = height;
+                    bestFormat = format;
+                }
+            }
+        }
+
+        // If we found a higher quality format than what we'd normally intercept, use it
+        if (bestFormat && bestFormat.url && bestQuality > 360) {
+            lastExtractedYouTubeVideoId = videoId;
+            console.log('[OfflineBrowser] Using higher quality format:', bestFormat.qualityLabel || bestFormat.quality, 'height:', bestQuality);
+            sendYouTubeStreamToNative(bestFormat.url);
+            return;
+        }
+
+        // Note: adaptiveFormats require signature deciphering, skip them
+        const adaptiveFormats = streamingData.adaptiveFormats || [];
+        if (adaptiveFormats.length > 0) {
+            console.log('[OfflineBrowser] Found', adaptiveFormats.length, 'adaptive formats');
+            // Log available adaptive qualities for debugging
+            const qualities = adaptiveFormats
+                .filter(f => f.mimeType?.includes('video'))
+                .map(f => f.qualityLabel || f.height + 'p')
+                .filter((v, i, a) => a.indexOf(v) === i);
+            console.log('[OfflineBrowser] Adaptive qualities available (need signature):', qualities.join(', '));
+        }
+
+        console.log('[OfflineBrowser] No higher quality stream found - will use intercepted 360p');
+    }
+
+    // Generate random visitor data (protobuf-like structure)
+    function generateVisitorData() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+        let result = 'Cgt';
+        for (let i = 0; i < 11; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        result += 'GiJDZ';
+        for (let i = 0; i < 16; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
+    }
+
+    // Try to fetch player response via Innertube API for HLS manifest
+    function tryFetchPlayerResponse(videoId) {
+        console.log('[OfflineBrowser] Fetching player response via Innertube API for video:', videoId);
+
+        // Updated iOS client parameters (January 2025)
+        // Based on yt-dlp: https://github.com/yt-dlp/yt-dlp/commit/de82acf
+        const IOS_CLIENT_VERSION = '20.03.02';
+        const IOS_DEVICE_MODEL = 'iPhone16,2';
+        const IOS_OS_VERSION = '18.2.1.22C161';
+        const IOS_USER_AGENT = 'com.google.ios.youtube/' + IOS_CLIENT_VERSION + ' (' + IOS_DEVICE_MODEL + '; U; CPU iOS 18_2_1 like Mac OS X;)';
+
+        const visitorData = generateVisitorData();
+
+        // Use iOS client which returns HLS manifests with pre-signed URLs
+        const requestBody = {
+            videoId: videoId,
+            context: {
+                client: {
+                    clientName: 'IOS',
+                    clientVersion: IOS_CLIENT_VERSION,
+                    deviceMake: 'Apple',
+                    deviceModel: IOS_DEVICE_MODEL,
+                    platform: 'MOBILE',
+                    osName: 'iOS',
+                    osVersion: IOS_OS_VERSION,
+                    hl: 'en',
+                    gl: 'US',
+                    visitorData: visitorData,
+                    userAgent: IOS_USER_AGENT,
+                    timeZone: 'America/New_York',
+                    utcOffsetMinutes: -300
+                },
+                user: {
+                    lockedSafetyMode: false
+                },
+                request: {
+                    useSsl: true,
+                    internalExperimentFlags: []
+                }
+            },
+            playbackContext: {
+                contentPlaybackContext: {
+                    html5Preference: 'HTML5_PREF_WANTS',
+                    signatureTimestamp: 0
+                }
+            },
+            contentCheckOk: true,
+            racyCheckOk: true
+        };
+
+        console.log('[OfflineBrowser] Using iOS client version:', IOS_CLIENT_VERSION);
+
+        fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Youtube-Client-Name': '5',
+                'X-Youtube-Client-Version': IOS_CLIENT_VERSION,
+                'X-Goog-Visitor-Id': visitorData,
+                'User-Agent': IOS_USER_AGENT,
+                'Origin': 'https://www.youtube.com',
+                'Referer': 'https://www.youtube.com/'
+            },
+            body: JSON.stringify(requestBody),
+            credentials: 'include'
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('[OfflineBrowser] Innertube API response received');
+            if (data.playabilityStatus) {
+                console.log('[OfflineBrowser] Playability status:', data.playabilityStatus.status);
+            }
+            processPlayerResponse(data, videoId);
+        })
+        .catch(error => {
+            console.log('[OfflineBrowser] Innertube API request failed:', error.message);
+        });
+    }
+
     // Expose a function to clear detected URLs (called from native on refresh/navigation)
     window.__offlineBrowserClearDetected = function() {
         detectedURLs.clear();
         mp4ByDomain.clear();
+        lastExtractedYouTubeVideoId = null;
         console.log('[OfflineBrowser] Cleared detected URLs');
     };
 
@@ -640,11 +891,20 @@
     if (isYouTubePage()) {
         console.log('[OfflineBrowser] YouTube page detected, enabling HLS interception');
 
+        // Try to extract higher quality stream from ytInitialPlayerResponse on page load
+        // Wait a bit for YouTube to populate the data
+        setTimeout(function() {
+            tryExtractHigherQualityStream();
+        }, 1500);
+
         // Listen for video play events (capture phase to catch before YouTube handles)
         document.addEventListener('play', function(e) {
             if (e.target && e.target.tagName === 'VIDEO') {
                 console.log('[OfflineBrowser] YouTube video play event detected');
                 startYouTubeHLSCapture();
+
+                // Try higher quality extraction on play
+                tryExtractHigherQualityStream();
 
                 // Check the video element for HLS source
                 const video = e.target;
@@ -695,9 +955,27 @@
         // Run YouTube monitor periodically
         setInterval(monitorYouTubePlayer, 1000);
 
+        // Track last URL for SPA navigation detection
+        let lastYouTubeURL = window.location.href;
+
         // Also run on DOM changes (YouTube is a SPA)
         const youtubeObserver = new MutationObserver(function() {
             monitorYouTubePlayer();
+
+            // Check for SPA navigation (URL changed)
+            const currentURL = window.location.href;
+            if (currentURL !== lastYouTubeURL) {
+                lastYouTubeURL = currentURL;
+                console.log('[OfflineBrowser] YouTube SPA navigation detected');
+
+                // Reset extraction state for new video
+                lastExtractedYouTubeVideoId = null;
+
+                // Try to extract higher quality stream after navigation
+                setTimeout(function() {
+                    tryExtractHigherQualityStream();
+                }, 1000);
+            }
         });
         youtubeObserver.observe(document.body, {
             childList: true,

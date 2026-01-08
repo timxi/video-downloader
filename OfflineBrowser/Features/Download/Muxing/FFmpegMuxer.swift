@@ -86,11 +86,12 @@ final class FFmpegMuxer {
                 return num1 < num2
             }
 
-        // Check for init segment for fMP4
+        // Check for init segment for fMP4 - must exist AND have content
         let initSegmentPath = directory.appendingPathComponent("init.mp4")
-        let hasInitSegment = isFMP4 && fileManager.fileExists(atPath: initSegmentPath.path)
+        let initSegmentSize = (try? fileManager.attributesOfItem(atPath: initSegmentPath.path)[.size] as? Int64) ?? 0
+        let hasValidInitSegment = isFMP4 && fileManager.fileExists(atPath: initSegmentPath.path) && initSegmentSize > 0
         if isFMP4 {
-            NSLog("[FFmpegMuxer] Init segment exists: %@", hasInitSegment ? "yes" : "no")
+            NSLog("[FFmpegMuxer] Init segment exists: %@, size: %lld bytes", fileManager.fileExists(atPath: initSegmentPath.path) ? "yes" : "no", initSegmentSize)
         }
 
         NSLog("[FFmpegMuxer] Found %d segment files", segmentFiles.count)
@@ -113,11 +114,13 @@ final class FFmpegMuxer {
         // Create concat file for FFmpeg
         let concatListURL = directory.appendingPathComponent("concat.txt")
 
-        // For fMP4, prepend init segment to the file list
+        // For fMP4, prepend init segment to the file list (only if valid)
         var filesToConcat: [URL] = []
-        if hasInitSegment {
+        if hasValidInitSegment {
             filesToConcat.append(initSegmentPath)
             NSLog("[FFmpegMuxer] Added init segment to concat list")
+        } else if isFMP4 {
+            NSLog("[FFmpegMuxer] No valid init segment - will use FFmpeg remuxing")
         }
         filesToConcat.append(contentsOf: segmentFiles)
 
@@ -150,10 +153,10 @@ final class FFmpegMuxer {
             command = "-f concat -safe 0 -i \"\(concatListURL.path)\" -c copy -bsf:a aac_adtstoasc \"\(mp4OutputURL.path)\""
         }
 
-        // For fMP4, skip FFmpeg concat demuxer - it can't handle fMP4 segments properly
-        // Binary concatenation (init + segments) works correctly for fMP4/CMAF
-        if isFMP4 {
-            NSLog("[FFmpegMuxer] Using binary concatenation for fMP4 stream")
+        // For fMP4 with valid init segment, use binary concatenation (init + segments)
+        // For fMP4 without init segment (e.g., YouTube 403), use FFmpeg to remux
+        if isFMP4 && hasValidInitSegment {
+            NSLog("[FFmpegMuxer] Using binary concatenation for fMP4 stream (with init segment)")
             try? fileManager.removeItem(at: concatListURL)
             try concatenateSegments(files: filesToConcat, outputURL: mp4OutputURL)
 
@@ -161,6 +164,49 @@ final class FFmpegMuxer {
             NSLog("[FFmpegMuxer] fMP4 concatenation succeeded - output size: %lld bytes", outputSize)
 
             return mp4OutputURL
+        } else if isFMP4 && !hasValidInitSegment {
+            // Use FFmpeg to remux fMP4 segments without init segment
+            // FFmpeg can often extract initialization info from the first segment
+            NSLog("[FFmpegMuxer] Using FFmpeg remux for fMP4 without init segment")
+
+            // First try: concat segments and remux with FFmpeg
+            let firstSegment = segmentFiles.first!
+            let remuxCommand = "-i \"\(firstSegment.path)\" -c copy -movflags +faststart \"\(mp4OutputURL.path)\""
+
+            // For multiple segments, use concat protocol
+            if segmentFiles.count > 1 {
+                // Create a file list for concat
+                let segmentList = segmentFiles.map { "file '\($0.path)'" }.joined(separator: "\n")
+                try segmentList.write(to: concatListURL, atomically: true, encoding: .utf8)
+
+                // Try FFmpeg concat demuxer with auto-detection
+                let concatCommand = "-f concat -safe 0 -i \"\(concatListURL.path)\" -c copy -movflags +faststart \"\(mp4OutputURL.path)\""
+                NSLog("[FFmpegMuxer] FFmpeg command: %@", concatCommand)
+
+                let session = FFmpegKit.execute(concatCommand)
+                let returnCode = session?.getReturnCode()
+
+                try? fileManager.removeItem(at: concatListURL)
+
+                if ReturnCode.isSuccess(returnCode) {
+                    let outputSize = (try? fileManager.attributesOfItem(atPath: mp4OutputURL.path)[.size] as? Int64) ?? 0
+                    NSLog("[FFmpegMuxer] FFmpeg remux succeeded - output size: %lld bytes", outputSize)
+
+                    if outputSize > totalSize / 2 {
+                        return mp4OutputURL
+                    }
+                }
+
+                // Fallback: binary concatenation even without init (may not play but preserves data)
+                NSLog("[FFmpegMuxer] FFmpeg remux failed, falling back to binary concatenation")
+                try? fileManager.removeItem(at: mp4OutputURL)
+                try concatenateSegments(files: segmentFiles, outputURL: mp4OutputURL)
+
+                let outputSize = (try? fileManager.attributesOfItem(atPath: mp4OutputURL.path)[.size] as? Int64) ?? 0
+                NSLog("[FFmpegMuxer] Fallback concatenation - output size: %lld bytes", outputSize)
+
+                return mp4OutputURL
+            }
         }
 
         NSLog("[FFmpegMuxer] Executing FFmpeg command: %@", command)

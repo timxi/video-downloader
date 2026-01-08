@@ -176,13 +176,20 @@ final class DownloadManager: ObservableObject {
         // Use page URL domain for folder organization, fallback to stream URL domain
         let folderDomain = pageURL?.host ?? url.host
 
+        // Determine quality: from stream qualities, or extract from YouTube itag in URL
+        var quality = stream.qualities?.first?.resolution
+        if quality == nil || quality == "Unknown" {
+            // Try to extract from YouTube itag in URL
+            quality = YouTubeExtractor.extractQualityFromURL(stream.url)
+        }
+
         let download = Download(
             videoURL: stream.url,
             manifestURL: stream.type == .hls ? stream.url : nil,
             pageTitle: pageTitle,
             pageURL: pageURL?.absoluteString,
             sourceDomain: folderDomain,
-            quality: stream.qualities?.first?.resolution,
+            quality: quality,
             thumbnailURL: thumbnailURL
         )
 

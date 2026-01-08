@@ -12,6 +12,7 @@ struct HLSParsedInfo {
     var encryptionKeyURL: String?
     var totalDuration: TimeInterval?
     var initSegmentURL: String?  // For fMP4/CMAF streams (EXT-X-MAP)
+    var initSegmentByteRange: String?  // BYTERANGE for init segment (e.g., "1234@0")
     var isFMP4: Bool = false     // True if stream uses fMP4 segments
 }
 
@@ -224,6 +225,7 @@ final class HLSParser {
         var isDRMProtected = false
         var encryptionKeyURL: String?
         var initSegmentURL: String?
+        var initSegmentByteRange: String?
         var isFMP4 = false
 
         var currentDuration: Double = 0
@@ -243,6 +245,11 @@ final class HLSParser {
                 if let uri = extractAttribute(from: trimmedLine, key: "URI") {
                     initSegmentURL = resolveURL(uri.replacingOccurrences(of: "\"", with: ""), baseURL: baseURL)
                     hlsLogger.info("Detected fMP4 stream with init segment: \(initSegmentURL ?? "unknown")")
+                }
+                // Extract BYTERANGE if present (e.g., BYTERANGE="1234@0" means 1234 bytes starting at offset 0)
+                if let byterange = extractAttribute(from: trimmedLine, key: "BYTERANGE") {
+                    initSegmentByteRange = byterange.replacingOccurrences(of: "\"", with: "")
+                    hlsLogger.info("Init segment byte range: \(initSegmentByteRange ?? "unknown")")
                 }
             }
 
@@ -288,6 +295,7 @@ final class HLSParser {
             encryptionKeyURL: encryptionKeyURL,
             totalDuration: totalDuration > 0 ? totalDuration : nil,
             initSegmentURL: initSegmentURL,
+            initSegmentByteRange: initSegmentByteRange,
             isFMP4: isFMP4
         )
 

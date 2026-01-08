@@ -26,6 +26,13 @@ final class StreamDetector: ObservableObject {
     // Streams shorter than 70% of the longest will be filtered out as secondary content
     private let minimumDurationRatio: Double = 0.70
 
+    // Time to wait for HLS interception before falling back to Innertube API
+    private let youtubeInterceptionWaitTime: TimeInterval = 4.0
+
+    // Track pending YouTube fallback tasks
+    private var pendingYouTubeFallback: DispatchWorkItem?
+    private var currentYouTubeVideoId: String?
+
     private init() {}
 
     // MARK: - Public Methods
@@ -37,10 +44,10 @@ final class StreamDetector: ObservableObject {
         // Avoid processing the same URL multiple times
         guard !processingURLs.contains(url) else { return }
 
-        // If YouTube HLS was intercepted from the player, cancel any pending Innertube extraction
+        // If YouTube stream was intercepted from the player, cancel pending Innertube fallback
         if source == "youtube-intercept" {
-            logger.info("YouTube HLS intercepted from player, cancelling Innertube extraction")
-            isExtractingYouTube = false
+            logger.info("YouTube stream intercepted from player, cancelling Innertube fallback")
+            cancelPendingYouTubeFallback()
         }
 
         let stream = DetectedStream(url: url, type: type)
@@ -61,6 +68,14 @@ final class StreamDetector: ObservableObject {
     func clearStreams() {
         detectedStreams.removeAll()
         processingURLs.removeAll()
+        cancelPendingYouTubeFallback()
+    }
+
+    /// Cancel any pending YouTube Innertube API fallback
+    private func cancelPendingYouTubeFallback() {
+        pendingYouTubeFallback?.cancel()
+        pendingYouTubeFallback = nil
+        currentYouTubeVideoId = nil
         isExtractingYouTube = false
     }
 
@@ -71,28 +86,72 @@ final class StreamDetector: ObservableObject {
     // MARK: - YouTube Extraction
 
     /// Check if the URL is a YouTube video and extract streams if so
+    /// Uses a two-phase approach:
+    /// 1. Wait for HLS/MP4 interception from the player (user must play video)
+    /// 2. Fall back to Innertube API if nothing intercepted after timeout
+    ///
     /// - Parameters:
     ///   - url: The current page URL
     ///   - webView: The WKWebView to get cookies from (for authenticated access)
-    /// - Returns: True if YouTube extraction was started
+    /// - Returns: True if this is a YouTube URL
     @discardableResult
     func checkAndExtractYouTube(url: URL, webView: WKWebView) -> Bool {
         guard youtubeExtractor.canExtract(url: url) else {
             return false
         }
 
-        logger.info("YouTube URL detected, starting extraction: \(url.absoluteString)")
+        // Extract video ID
+        guard let videoId = youtubeExtractor.extractVideoId(from: url) else {
+            logger.warning("Could not extract video ID from YouTube URL: \(url.absoluteString)")
+            return false
+        }
 
-        // Avoid duplicate extractions
-        let urlString = url.absoluteString
-        guard !processingURLs.contains(urlString) else {
-            logger.info("Already processing YouTube URL: \(urlString)")
+        // If same video, don't restart the process
+        if currentYouTubeVideoId == videoId {
+            logger.info("Already monitoring YouTube video: \(videoId)")
             return true
         }
 
-        processingURLs.insert(urlString)
+        // Cancel any previous pending fallback
+        cancelPendingYouTubeFallback()
+
+        logger.info("YouTube video detected: \(videoId) - waiting for player interception")
+        currentYouTubeVideoId = videoId
         isExtractingYouTube = true
-        logger.info("Starting YouTube extraction for: \(urlString)")
+
+        // Schedule fallback to Innertube API after waiting for interception
+        let fallbackWork = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+
+            // Check if streams were already intercepted
+            if !self.detectedStreams.isEmpty {
+                self.logger.info("Streams already intercepted, skipping Innertube API fallback")
+                self.isExtractingYouTube = false
+                return
+            }
+
+            self.logger.info("No streams intercepted after \(self.youtubeInterceptionWaitTime)s, falling back to Innertube API")
+            self.extractViaInnertubeAPI(url: url, webView: webView, videoId: videoId)
+        }
+
+        pendingYouTubeFallback = fallbackWork
+        DispatchQueue.main.asyncAfter(deadline: .now() + youtubeInterceptionWaitTime, execute: fallbackWork)
+
+        return true
+    }
+
+    /// Extract YouTube streams via Innertube API (fallback method)
+    private func extractViaInnertubeAPI(url: URL, webView: WKWebView, videoId: String) {
+        let urlString = url.absoluteString
+
+        // Avoid duplicate extractions
+        guard !processingURLs.contains(urlString) else {
+            logger.info("Already processing YouTube URL via API: \(urlString)")
+            return
+        }
+
+        processingURLs.insert(urlString)
+        logger.info("Starting Innertube API extraction for video: \(videoId)")
 
         // Get cookies from the webView's data store
         webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
@@ -102,16 +161,17 @@ final class StreamDetector: ObservableObject {
                 return domain.contains("youtube.com") || domain.contains("google.com")
             }
 
-            self?.logger.info("Starting YouTube extraction with \(youtubeCookies.count) cookies")
+            self?.logger.info("Innertube API extraction with \(youtubeCookies.count) cookies")
 
             self?.youtubeExtractor.extract(url: url, cookies: youtubeCookies) { [weak self] result in
                 DispatchQueue.main.async {
                     self?.processingURLs.remove(urlString)
                     self?.isExtractingYouTube = false
+                    self?.currentYouTubeVideoId = nil
 
                     switch result {
                     case .success(let streams):
-                        self?.logger.info("YouTube extraction successful: \(streams.count) streams")
+                        self?.logger.info("Innertube API extraction successful: \(streams.count) streams")
                         for stream in streams {
                             // Check if we already have this stream
                             if !(self?.detectedStreams.contains(where: { $0.url == stream.url }) ?? false) {
@@ -120,14 +180,12 @@ final class StreamDetector: ObservableObject {
                         }
 
                     case .failure(let error):
-                        self?.logger.warning("YouTube extraction failed: \(error.localizedDescription)")
-                        // Fall back to generic detection - the JavaScript injection may still detect HLS streams
+                        self?.logger.warning("Innertube API extraction failed: \(error.localizedDescription)")
+                        // JavaScript interception is the only remaining fallback
                     }
                 }
             }
         }
-
-        return true
     }
 
     /// Check if a URL is a YouTube video URL

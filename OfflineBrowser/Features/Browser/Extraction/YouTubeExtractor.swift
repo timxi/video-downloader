@@ -183,6 +183,79 @@ final class YouTubeExtractor: YouTubeExtractorProtocol {
 
         return stream
     }
+
+    // MARK: - Static Quality Extraction
+
+    /// Extract quality from YouTube itag in URL
+    /// YouTube HLS URLs contain itag parameter that identifies the quality
+    static func extractQualityFromURL(_ urlString: String) -> String? {
+        // YouTube itag to quality mapping
+        // Based on https://gist.github.com/AgentOak/34d47c65b1d28829bb17c24c04a0096f
+        let itagToQuality: [Int: String] = [
+            // HLS video itags
+            312: "1080p60",
+            311: "720p60",
+            310: "720p60",
+            309: "720p60",
+            308: "1440p60",
+            315: "2160p60",
+            299: "1080p60",
+            298: "720p60",
+            // DASH video itags
+            137: "1080p",
+            136: "720p",
+            135: "480p",
+            134: "360p",
+            133: "240p",
+            160: "144p",
+            248: "1080p",
+            247: "720p",
+            244: "480p",
+            243: "360p",
+            242: "240p",
+            278: "144p",
+            // VP9 HLS
+            302: "720p60",
+            303: "1080p60",
+            304: "1440p60",
+            305: "2160p60",
+            // AV1
+            394: "144p",
+            395: "240p",
+            396: "360p",
+            397: "480p",
+            398: "720p",
+            399: "1080p",
+            400: "1440p",
+            401: "2160p",
+            // Direct MP4 (progressive)
+            18: "360p",
+            22: "720p",
+            37: "1080p",
+            38: "3072p"
+        ]
+
+        // Extract itag from URL
+        // URL format: .../itag/123/... or itag=123
+        if let itagMatch = urlString.range(of: "/itag/(\\d+)", options: .regularExpression) {
+            let itagString = urlString[itagMatch]
+                .replacingOccurrences(of: "/itag/", with: "")
+            if let itag = Int(itagString), let quality = itagToQuality[itag] {
+                return quality
+            }
+        }
+
+        // Also check for itag= query parameter
+        if let urlComponents = URLComponents(string: urlString),
+           let itagParam = urlComponents.queryItems?.first(where: { $0.name == "itag" }),
+           let itagString = itagParam.value,
+           let itag = Int(itagString),
+           let quality = itagToQuality[itag] {
+            return quality
+        }
+
+        return nil
+    }
 }
 
 // MARK: - DetectedStream Extension

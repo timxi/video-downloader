@@ -41,6 +41,7 @@ final class DownloadTask: DownloadTaskProtocol {
     // fMP4/CMAF support
     private var isFMP4 = false
     private var initSegmentURL: String?
+    private var initSegmentByteRange: String?  // e.g., "1234@0" means 1234 bytes at offset 0
 
     enum TaskError: Error {
         case cancelled
@@ -57,6 +58,9 @@ final class DownloadTask: DownloadTaskProtocol {
         self.cookies = cookies
     }
 
+    // YouTube iOS client User-Agent (must match what was used to get the HLS manifest)
+    private static let youtubeIOSUserAgent = "com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)"
+
     // Helper to create a request with cookies
     private func createRequest(for url: URL, referer: String? = nil) -> URLRequest {
         var request = URLRequest(url: url)
@@ -71,18 +75,32 @@ final class DownloadTask: DownloadTaskProtocol {
             logger.info("Added \(self.cookies.count) cookies to request")
         }
 
-        // Add common headers to avoid being blocked
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        // Detect if this is a YouTube/Google Video domain
+        let host = url.host?.lowercased() ?? ""
+        let isYouTubeDomain = host.contains("googlevideo.com") ||
+                              host.contains("youtube.com") ||
+                              host.contains("ytimg.com")
 
-        // Add Referer and Origin for video servers that check these
-        if let referer = referer ?? download.pageURL {
-            request.setValue(referer, forHTTPHeaderField: "Referer")
-            if let refererURL = URL(string: referer), let scheme = refererURL.scheme, let host = refererURL.host {
-                request.setValue("\(scheme)://\(host)", forHTTPHeaderField: "Origin")
+        // Use YouTube iOS client User-Agent for YouTube domains to match the original manifest request
+        // This is critical because YouTube validates User-Agent consistency
+        if isYouTubeDomain {
+            request.setValue(Self.youtubeIOSUserAgent, forHTTPHeaderField: "User-Agent")
+            // YouTube's video CDN expects specific Origin
+            request.setValue("https://www.youtube.com", forHTTPHeaderField: "Origin")
+            request.setValue("https://www.youtube.com/", forHTTPHeaderField: "Referer")
+        } else {
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            // Add Referer and Origin for non-YouTube video servers
+            if let referer = referer ?? download.pageURL {
+                request.setValue(referer, forHTTPHeaderField: "Referer")
+                if let refererURL = URL(string: referer), let scheme = refererURL.scheme, let host = refererURL.host {
+                    request.setValue("\(scheme)://\(host)", forHTTPHeaderField: "Origin")
+                }
             }
         }
+
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
 
         return request
     }
@@ -196,9 +214,13 @@ final class DownloadTask: DownloadTaskProtocol {
                 self.segments = segments
                 self.isFMP4 = info.isFMP4
                 self.initSegmentURL = info.initSegmentURL
+                self.initSegmentByteRange = info.initSegmentByteRange
 
                 if info.isFMP4 {
                     NSLog("[DownloadTask] Stream uses fMP4 format (CMAF)")
+                    if let byteRange = info.initSegmentByteRange {
+                        NSLog("[DownloadTask] Init segment byte range: %@", byteRange)
+                    }
                 }
 
                 // Download encryption key if needed
@@ -286,6 +308,9 @@ final class DownloadTask: DownloadTaskProtocol {
         }.resume()
     }
 
+    private var initSegmentRetryCount = 0
+    private let maxInitSegmentRetries = 3
+
     private func downloadInitSegmentIfNeeded(completion: @escaping () -> Void) {
         guard isFMP4, let initURLString = initSegmentURL, let initURL = URL(string: initURLString) else {
             // Not fMP4 or no init segment - proceed immediately
@@ -294,6 +319,7 @@ final class DownloadTask: DownloadTaskProtocol {
         }
 
         NSLog("[DownloadTask] Downloading fMP4 initialization segment from: %@", initURLString)
+        NSLog("[DownloadTask] Init segment host: %@", initURL.host ?? "unknown")
 
         // Create temp directory first if needed
         do {
@@ -305,7 +331,31 @@ final class DownloadTask: DownloadTaskProtocol {
         }
 
         let destinationURL = FileStorageManager.shared.initSegmentPath(for: download.id)
-        let request = createRequest(for: initURL)
+        var request = createRequest(for: initURL)
+
+        // Add Range header if byterange is specified (format: "length@offset" or just "length")
+        if let byteRange = initSegmentByteRange {
+            let rangeHeader: String
+            if byteRange.contains("@") {
+                let parts = byteRange.split(separator: "@")
+                if parts.count == 2, let length = Int(parts[0]), let offset = Int(parts[1]) {
+                    rangeHeader = "bytes=\(offset)-\(offset + length - 1)"
+                } else {
+                    rangeHeader = "bytes=0-\(byteRange)"
+                }
+            } else if let length = Int(byteRange) {
+                rangeHeader = "bytes=0-\(length - 1)"
+            } else {
+                rangeHeader = ""
+            }
+            if !rangeHeader.isEmpty {
+                request.setValue(rangeHeader, forHTTPHeaderField: "Range")
+                NSLog("[DownloadTask] Using Range header for init segment: %@", rangeHeader)
+            }
+        }
+
+        // Log all request headers for debugging
+        NSLog("[DownloadTask] Init segment request headers: %@", request.allHTTPHeaderFields?.description ?? "none")
 
         URLSession.shared.downloadTask(with: request) { [weak self] tempURL, response, error in
             guard let self = self else {
@@ -315,12 +365,26 @@ final class DownloadTask: DownloadTaskProtocol {
 
             if let error = error {
                 NSLog("[DownloadTask] ERROR: Failed to download init segment: %@", error.localizedDescription)
-                completion()
+                self.retryInitSegmentOrContinue(completion: completion)
                 return
             }
 
             if let httpResponse = response as? HTTPURLResponse {
                 NSLog("[DownloadTask] Init segment response status: %d", httpResponse.statusCode)
+                NSLog("[DownloadTask] Init segment response headers: %@", httpResponse.allHeaderFields.description)
+
+                // Handle non-success status codes
+                if httpResponse.statusCode == 403 || httpResponse.statusCode == 401 {
+                    NSLog("[DownloadTask] Auth error on init segment, will retry or continue without it")
+                    self.retryInitSegmentOrContinue(completion: completion)
+                    return
+                }
+
+                if httpResponse.statusCode != 200 && httpResponse.statusCode != 206 {
+                    NSLog("[DownloadTask] Unexpected status code for init segment: %d", httpResponse.statusCode)
+                    self.retryInitSegmentOrContinue(completion: completion)
+                    return
+                }
             }
 
             guard let tempURL = tempURL else {
@@ -329,16 +393,56 @@ final class DownloadTask: DownloadTaskProtocol {
                 return
             }
 
+            // Verify we got actual data, not an error page
+            if let data = try? Data(contentsOf: tempURL, options: .mappedIfSafe) {
+                if data.count < 100 {
+                    NSLog("[DownloadTask] Init segment too small (%d bytes), might be error page", data.count)
+                    self.retryInitSegmentOrContinue(completion: completion)
+                    return
+                }
+
+                // Check for HTML content
+                let header = data.prefix(20)
+                if let str = String(data: header, encoding: .utf8),
+                   (str.lowercased().contains("<!doctype") || str.lowercased().contains("<html")) {
+                    NSLog("[DownloadTask] Init segment is HTML, not video data")
+                    self.retryInitSegmentOrContinue(completion: completion)
+                    return
+                }
+
+                // Log first bytes for debugging (ftyp box should start with size + "ftyp")
+                NSLog("[DownloadTask] Init segment first 20 bytes hex: %@", data.prefix(20).map { String(format: "%02x", $0) }.joined(separator: " "))
+            }
+
             do {
                 try FileStorageManager.shared.moveFile(from: tempURL, to: destinationURL)
                 let size = FileStorageManager.shared.fileSize(at: destinationURL) ?? 0
                 NSLog("[DownloadTask] Init segment saved: %@ - %lld bytes", destinationURL.lastPathComponent, size)
+
+                if size == 0 {
+                    NSLog("[DownloadTask] WARNING: Init segment is 0 bytes, removing")
+                    try? FileStorageManager.shared.removeFile(at: destinationURL)
+                }
             } catch {
                 NSLog("[DownloadTask] ERROR: Failed to save init segment: %@", error.localizedDescription)
             }
 
             completion()
         }.resume()
+    }
+
+    private func retryInitSegmentOrContinue(completion: @escaping () -> Void) {
+        initSegmentRetryCount += 1
+        if initSegmentRetryCount < maxInitSegmentRetries {
+            NSLog("[DownloadTask] Retrying init segment download (%d/%d)", initSegmentRetryCount, maxInitSegmentRetries)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.downloadInitSegmentIfNeeded(completion: completion)
+            }
+        } else {
+            NSLog("[DownloadTask] Init segment download failed after %d retries, continuing without it", maxInitSegmentRetries)
+            NSLog("[DownloadTask] Video may not be playable - FFmpeg will attempt to remux")
+            completion()
+        }
     }
 
     private func startSegmentDownloads() {
@@ -356,6 +460,9 @@ final class DownloadTask: DownloadTaskProtocol {
         currentSegmentIndex = download.segmentsDownloaded
         downloadNextSegment()
     }
+
+    private var segmentRetryCount = 0
+    private let maxSegmentRetries = 3
 
     private func downloadNextSegment() {
         guard !isCancelled else {
@@ -378,12 +485,13 @@ final class DownloadTask: DownloadTaskProtocol {
         guard let url = URL(string: segment.url) else {
             NSLog("[DownloadTask] ERROR: Invalid segment URL, skipping: %@", segment.url)
             currentSegmentIndex += 1
+            segmentRetryCount = 0
             downloadNextSegment()
             return
         }
 
         let destinationURL = FileStorageManager.shared.segmentPath(for: download.id, index: segment.index, isFMP4: isFMP4)
-        NSLog("[DownloadTask] Downloading segment %d to: %@", currentSegmentIndex, destinationURL.path)
+        NSLog("[DownloadTask] Downloading segment %d to: %@ (attempt %d)", currentSegmentIndex, destinationURL.path, segmentRetryCount + 1)
 
         downloadSegment(from: url, to: destinationURL) { [weak self] result in
             guard let self = self else { return }
@@ -392,6 +500,7 @@ final class DownloadTask: DownloadTaskProtocol {
             case .success(let fileURL):
                 self.downloadedSegments.append(fileURL)
                 self.currentSegmentIndex += 1
+                self.segmentRetryCount = 0
 
                 let progress = Double(self.currentSegmentIndex) / Double(self.segments.count)
                 self.delegate?.downloadTask(self, didUpdateProgress: progress * 0.9, segmentsDownloaded: self.currentSegmentIndex) // Reserve 10% for muxing
@@ -399,7 +508,17 @@ final class DownloadTask: DownloadTaskProtocol {
                 self.downloadNextSegment()
 
             case .failure(let error):
-                self.delegate?.downloadTask(self, didFailWithError: error)
+                self.segmentRetryCount += 1
+                if self.segmentRetryCount < self.maxSegmentRetries {
+                    NSLog("[DownloadTask] Segment %d failed, retrying (%d/%d): %@", self.currentSegmentIndex, self.segmentRetryCount, self.maxSegmentRetries, error.localizedDescription)
+                    // Wait a bit before retrying
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                        self?.downloadNextSegment()
+                    }
+                } else {
+                    NSLog("[DownloadTask] Segment %d failed after %d retries: %@", self.currentSegmentIndex, self.maxSegmentRetries, error.localizedDescription)
+                    self.delegate?.downloadTask(self, didFailWithError: error)
+                }
             }
         }
     }
