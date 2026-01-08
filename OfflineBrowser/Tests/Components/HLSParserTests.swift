@@ -374,4 +374,31 @@ final class HLSParserTests: XCTestCase {
 
         wait(for: [expectation], timeout: 1.0)
     }
+
+    // MARK: - BYTERANGE Tests (YouTube fMP4)
+
+    func testParseMediaPlaylist_extractsByteRangeFromInitSegment() {
+        let expectation = expectation(description: "Parse completes")
+
+        sut.parseManifest(content: TestFixtures.fmp4PlaylistWithByteRange, baseURL: baseURL) { result in
+            switch result {
+            case .success(let info):
+                XCTAssertTrue(info.isFMP4)
+                XCTAssertNotNil(info.initSegmentURL)
+                XCTAssertTrue(info.initSegmentURL?.hasSuffix("video.mp4") ?? false)
+                XCTAssertEqual(info.initSegmentByteRange, "1234@0")
+            case .failure(let error):
+                XCTFail("Parse should succeed: \(error)")
+            }
+            expectation.fulfill()
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testExtractAttribute_extractsByteRange() {
+        let line = "#EXT-X-MAP:URI=\"init.mp4\",BYTERANGE=\"5678@100\""
+        let byterange = sut.extractAttribute(from: line, key: "BYTERANGE")
+        XCTAssertEqual(byterange, "5678@100")
+    }
 }

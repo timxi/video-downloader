@@ -91,6 +91,19 @@ enum TestFixtures {
         #EXT-X-ENDLIST
         """
 
+    /// fMP4/CMAF playlist with EXT-X-MAP and BYTERANGE (common for YouTube)
+    static let fmp4PlaylistWithByteRange = """
+        #EXTM3U
+        #EXT-X-VERSION:7
+        #EXT-X-TARGETDURATION:10
+        #EXT-X-MAP:URI="video.mp4",BYTERANGE="1234@0"
+        #EXTINF:10.0,
+        segment_0.m4s
+        #EXTINF:10.0,
+        segment_1.m4s
+        #EXT-X-ENDLIST
+        """
+
     /// Playlist with absolute URLs
     static let absoluteURLPlaylist = """
         #EXTM3U
